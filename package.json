@@ -1,0 +1,13 @@
+{
+  "name": "la-bateada",
+  "version": "1.0.0",
+  "description": "Pagina minimalista con los resultados de MLB del dia",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
