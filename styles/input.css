@@ -496,6 +496,10 @@
     @apply h-3.5 w-3.5 shrink-0 object-contain;
   }
 
+  .campo-tab-logo-solo {
+    @apply h-5 w-5;
+  }
+
   .campo-diamante {
     @apply relative mx-auto w-full max-w-[360px];
     aspect-ratio: 100 / 136;

@@ -346,7 +346,7 @@ function crearFilaGameLogAbridor(split) {
   return `
     <tr>
       <td>${formatoFechaCorta(split.date)}</td>
-      <td class="nombre-jugador">${split.opponent?.name ?? ''}</td>
+      <td class="nombre-jugador">${split.opponent?.id ? `<img class="logo logo-sm" src="${logoEquipo(split.opponent.id)}" alt="${split.opponent.name}" title="${split.opponent.name}" loading="lazy">` : ''}</td>
       <td><span class="rol-badge ${esAbridor ? 'rol-abridor' : 'rol-relevo'}">${esAbridor ? 'Starter' : 'Bullpen'}</span></td>
       <td>${s.inningsPitched}</td>
       <td>${s.hits}</td>
@@ -418,9 +418,8 @@ function crearPestanasAbridor(game, lado) {
   const home = game.teams.home.team;
 
   const pestana = (equipo, valor) => `
-    <button type="button" class="campo-tab ${lado === valor ? 'activo' : ''}" onclick="cambiarAbridorEquipo(event, ${game.gamePk}, '${valor}')">
-      <img class="campo-tab-logo" src="${logoEquipo(equipo.id)}" alt="" loading="lazy">
-      ${equipo.name}
+    <button type="button" class="campo-tab ${lado === valor ? 'activo' : ''}" title="${equipo.name}" onclick="cambiarAbridorEquipo(event, ${game.gamePk}, '${valor}')">
+      <img class="campo-tab-logo campo-tab-logo-solo" src="${logoEquipo(equipo.id)}" alt="${equipo.name}" loading="lazy">
     </button>
   `;
 
@@ -1000,16 +999,34 @@ function refrescarVista() {
 
 function renderContenedor() {
   const contenedor = document.getElementById('juegos');
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+
+  // Si el elemento con foco (el botón que se acaba de clickear) queda
+  // desconectado del DOM al limpiar el contenedor, el navegador mueve el
+  // foco a <body> y hace scroll al tope de la página. Se quita el foco
+  // explícitamente antes de desconectarlo para evitar ese salto.
+  if (document.activeElement && contenedor.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
+
   contenedor.innerHTML = '';
 
   if (ultimosJuegos.length === 0) {
     contenedor.innerHTML = '<p class="estado">No games scheduled for this date.</p>';
-    return;
+  } else {
+    ultimosJuegos.forEach((game) => {
+      contenedor.appendChild(crearTarjetaJuego(game));
+    });
   }
 
-  ultimosJuegos.forEach((game) => {
-    contenedor.appendChild(crearTarjetaJuego(game));
-  });
+  // Reemplazar todo el contenedor puede achicar la página momentáneamente
+  // (ej. mientras carga el tab de Abridores) y el navegador ajusta el
+  // scroll a ese alto menor; se restaura para que no "salte" al tope.
+  // El segundo restore en rAF cubre a los navegadores (sobre todo móviles)
+  // que reajustan el scroll por el cambio de foco recién en el próximo frame.
+  window.scrollTo(scrollX, scrollY);
+  requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
 }
 
 function actualizarControlesFecha() {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'la-bateada-v1';
+const CACHE_NAME = 'la-bateada-v2';
 
 const PRECACHE_URLS = [
   '/',
@@ -53,14 +53,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Stale-while-revalidate: sirve la copia cacheada al toque si existe, pero
+  // siempre relanza el fetch para refrescar la cache en segundo plano. Así
+  // un cambio en app.js/style.css llega en el siguiente reload sin depender
+  // de que alguien se acuerde de subir CACHE_NAME para que el SW reinstale.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        return response;
-      });
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request);
+      const actualizado = fetch(request)
+        .then((response) => {
+          cache.put(request, response.clone());
+          return response;
+        })
+        .catch(() => cached);
+      return cached || actualizado;
     })
   );
 });
