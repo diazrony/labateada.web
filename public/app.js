@@ -29,6 +29,21 @@ const POSICIONES_CAMPO = {
   RF: { x: 86, y: 23 },
 };
 
+function nombreConApellido(persona) {
+  const fullName = persona?.fullName ?? '';
+  const apellido = persona?.boxscoreName ?? '';
+
+  if (apellido && fullName.endsWith(apellido)) {
+    const nombre = fullName.slice(0, fullName.length - apellido.length).trim();
+    return nombre ? `${nombre} <strong>${apellido}</strong>` : `<strong>${apellido}</strong>`;
+  }
+
+  const partes = fullName.trim().split(/\s+/);
+  if (partes.length <= 1) return fullName;
+  const ultimo = partes.pop();
+  return `${partes.join(' ')} <strong>${ultimo}</strong>`;
+}
+
 function fechaHoy() {
   const hoy = new Date();
   const y = hoy.getFullYear();
@@ -165,7 +180,7 @@ async function obtenerDatosAbridor(personId, temporada) {
 
   const resultado = {
     id: personId,
-    nombre: persona?.fullName ?? '',
+    nombre: nombreConApellido(persona),
     mano: persona?.pitchHand?.code ?? null,
     temporada: bloqueTemporada?.splits?.[0]?.stat ?? null,
     ultimosJuegos: (bloqueJuegos?.splits ?? [])
@@ -224,7 +239,7 @@ function crearMarcadorCampo(jugador) {
   const coord = POSICIONES_CAMPO[jugador.position.abbreviation];
   if (!coord) return '';
 
-  const nombre = jugador.person.boxscoreName ?? jugador.person.fullName;
+  const nombre = nombreConApellido(jugador.person);
   const pais = cachePersonas.get(jugador.person.id)?.pais ?? null;
   const bandera = banderaUrl(pais);
 
@@ -263,7 +278,7 @@ function crearCampoDiamante(fielders) {
 }
 
 function crearNotaDH(dh) {
-  const nombre = dh.person.boxscoreName ?? dh.person.fullName;
+  const nombre = nombreConApellido(dh.person);
   const pais = cachePersonas.get(dh.person.id)?.pais ?? null;
   const bandera = banderaUrl(pais);
 
@@ -333,8 +348,17 @@ function crearTarjetaAbridor(datos) {
     ? `${t.wins}-${t.losses} · ERA ${t.era} · WHIP ${t.whip} · ${t.strikeOuts} K`
     : 'No season stats yet';
 
-  const filas = datos.ultimosJuegos.length
-    ? datos.ultimosJuegos.map(crearFilaGameLogAbridor).join('')
+  const tablaId = `abridor-${datos.id}`;
+  const columnasAbridor = ['Date', 'Opp', 'Role', 'IP', 'H', 'R', 'ER', 'BB', 'K', 'Dec'];
+  const juegosOrdenados = ordenarFilas(tablaId, datos.ultimosJuegos, (split) => {
+    const s = split.stat;
+    const esAbridor = Number(s.gamesStarted) === 1;
+    const decision = s.wins === 1 ? 'W' : s.losses === 1 ? 'L' : s.saves === 1 ? 'SV' : '';
+    return [split.date, split.opponent?.name ?? '', esAbridor ? 'Starter' : 'Bullpen', s.inningsPitched, s.hits, s.runs, s.earnedRuns, s.baseOnBalls, s.strikeOuts, decision];
+  });
+
+  const filas = juegosOrdenados.length
+    ? juegosOrdenados.map(crearFilaGameLogAbridor).join('')
     : `<tr><td colspan="10" class="vacio">No recent games.</td></tr>`;
 
   return `
@@ -349,9 +373,7 @@ function crearTarjetaAbridor(datos) {
       <div class="boxscore-wrap">
         <table class="tabla-stats tabla-abridor">
           <thead>
-            <tr>
-              <th>Date</th><th>Opp</th><th>Role</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th>Dec</th>
-            </tr>
+            <tr>${crearEncabezadoOrdenable(tablaId, columnasAbridor)}</tr>
           </thead>
           <tbody>${filas}</tbody>
         </table>
@@ -435,7 +457,7 @@ function crearFilaBateo(jugador) {
   return `
     <tr>
       <td><img class="foto-jugador" src="${fotoJugador(jugador.person.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-      <td class="nombre-jugador">${jugador.person.boxscoreName}<span class="pos-jugador">${jugador.position.abbreviation}</span></td>
+      <td class="nombre-jugador">${nombreConApellido(jugador.person)}<span class="pos-jugador">${jugador.position.abbreviation}</span></td>
       <td>${b.atBats}</td>
       <td>${b.runs}</td>
       <td>${b.hits}</td>
@@ -453,7 +475,7 @@ function crearFilaPitcheo(jugador) {
   return `
     <tr>
       <td><img class="foto-jugador" src="${fotoJugador(jugador.person.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-      <td class="nombre-jugador">${jugador.person.boxscoreName}</td>
+      <td class="nombre-jugador">${nombreConApellido(jugador.person)}</td>
       <td>${p.inningsPitched}</td>
       <td>${p.hits}</td>
       <td>${p.runs}</td>
@@ -465,11 +487,17 @@ function crearFilaPitcheo(jugador) {
   `;
 }
 
-function crearFilaBateadorHistorial(b) {
+function crearFilaBateadorHistorial(b, idsAlineacion) {
   const s = b.stat;
+  const enAlineacion = idsAlineacion?.has(b.id) ?? false;
   return `
     <tr>
-      <td><img class="foto-jugador" src="${fotoJugador(b.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
+      <td>
+        <span class="foto-wrap">
+          <img class="foto-jugador" src="${fotoJugador(b.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+          ${enAlineacion ? '<span class="punto-alineacion" title="In starting lineup"></span>' : ''}
+        </span>
+      </td>
       <td class="nombre-jugador">${b.nombre}</td>
       <td>${s.gamesPlayed}</td>
       <td>${s.atBats}</td>
@@ -481,7 +509,22 @@ function crearFilaBateadorHistorial(b) {
   `;
 }
 
-function renderListaBateadores(game, rosterTeamId, opponentTeamId) {
+function idsAlineacionInicial(game, lado) {
+  if (!cacheBoxscoreDetalle.has(game.gamePk)) {
+    obtenerBoxscoreDetalle(game)
+      .then(() => {
+        if (expandidos.has(game.gamePk)) renderContenedor();
+      })
+      .catch(() => {});
+    return null;
+  }
+
+  const boxscore = cacheBoxscoreDetalle.get(game.gamePk);
+  const { fielders, dh } = alineacionInicial(boxscore.teams[lado]);
+  return new Set((dh ? [...fielders, dh] : fielders).map((j) => j.person.id));
+}
+
+function renderListaBateadores(game, rosterTeamId, opponentTeamId, idsAlineacion) {
   const clave = `${rosterTeamId}-${opponentTeamId}`;
   if (!cacheBateadoresHistorial.has(clave)) {
     obtenerBateadoresHistoricos(rosterTeamId, opponentTeamId)
@@ -493,13 +536,18 @@ function renderListaBateadores(game, rosterTeamId, opponentTeamId) {
   }
 
   return crearTablaJugadores(
+    `hist-${clave}`,
     cacheBateadoresHistorial.get(clave),
     ['G', 'AB', 'H', 'HR', 'AVG', 'OPS'],
-    crearFilaBateadorHistorial
+    (b) => crearFilaBateadorHistorial(b, idsAlineacion),
+    (b) => {
+      const s = b.stat;
+      return [s.gamesPlayed, s.atBats, s.hits, s.homeRuns, s.avg, s.ops];
+    }
   );
 }
 
-function crearEstadisticasEquipo(boxscore, lado) {
+function crearEstadisticasEquipo(boxscore, lado, gamePk) {
   const equipoBox = boxscore.teams[lado];
   const jugadoresDe = (ids) => ids.map((id) => equipoBox.players[`ID${id}`]).filter(Boolean);
 
@@ -517,9 +565,17 @@ function crearEstadisticasEquipo(boxscore, lado) {
 
   return `
     <h4 class="subtitulo">Hitting</h4>
-    ${crearTablaJugadores(bateadores, columnasBateo, crearFilaBateo)}
+    ${crearTablaJugadores(`bateo-${gamePk}-${lado}`, bateadores, columnasBateo, crearFilaBateo, (jugador) => {
+      const b = jugador.stats.batting;
+      const avg = jugador.seasonStats?.batting?.avg ?? '';
+      return [b.atBats, b.runs, b.hits, b.rbi, b.baseOnBalls, b.strikeOuts, avg];
+    })}
     <h4 class="subtitulo">Pitching</h4>
-    ${crearTablaJugadores(lanzadores, columnasPitcheo, crearFilaPitcheo)}
+    ${crearTablaJugadores(`pitcheo-${gamePk}-${lado}`, lanzadores, columnasPitcheo, crearFilaPitcheo, (jugador) => {
+      const p = jugador.stats.pitching;
+      const era = jugador.seasonStats?.pitching?.era ?? '';
+      return [p.inningsPitched, p.hits, p.runs, p.earnedRuns, p.baseOnBalls, p.strikeOuts, era];
+    })}
   `;
 }
 
@@ -573,7 +629,7 @@ function renderEquipoSlot(game) {
     <h4 class="subtitulo">Starting Lineup</h4>
     ${lineupHtml}
     <h4 class="subtitulo">Game Stats</h4>
-    ${crearEstadisticasEquipo(boxscore, lado)}
+    ${crearEstadisticasEquipo(boxscore, lado, game.gamePk)}
   `;
 }
 
@@ -652,7 +708,7 @@ async function obtenerBateadoresHistoricos(rosterTeamId, opponentTeamId) {
       .map((persona) => {
         const stat = persona.stats?.[0]?.splits?.[0]?.stat;
         if (!stat || Number(stat.hits) === 0) return null;
-        return { id: persona.id, nombre: persona.boxscoreName ?? persona.fullName, stat };
+        return { id: persona.id, nombre: nombreConApellido(persona), stat };
       })
       .filter(Boolean)
       .sort((a, b) => b.stat.hits - a.stat.hits || Number(b.stat.avg) - Number(a.stat.avg))
@@ -715,11 +771,14 @@ function renderBateadoresSeccion(game) {
   const away = game.teams.away.team;
   const home = game.teams.home.team;
 
+  const idsAlineacionAway = idsAlineacionInicial(game, 'away');
+  const idsAlineacionHome = idsAlineacionInicial(game, 'home');
+
   return `
     <h4 class="subtitulo">Top Hitters vs ${home.name}</h4>
-    ${renderListaBateadores(game, away.id, home.id)}
+    ${renderListaBateadores(game, away.id, home.id, idsAlineacionAway)}
     <h4 class="subtitulo">Top Hitters vs ${away.name}</h4>
-    ${renderListaBateadores(game, home.id, away.id)}
+    ${renderListaBateadores(game, home.id, away.id, idsAlineacionHome)}
   `;
 }
 
@@ -907,6 +966,10 @@ function ordenarJuegos(a, b) {
   }
 
   return new Date(a.gameDate) - new Date(b.gameDate);
+}
+
+function refrescarVista() {
+  renderContenedor();
 }
 
 function renderContenedor() {

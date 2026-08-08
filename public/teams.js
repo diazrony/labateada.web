@@ -12,7 +12,6 @@ const DIVISIONES = {
 };
 
 const SECCIONES_EQUIPO = [
-  { id: 'info', etiqueta: 'Overview' },
   { id: 'bateadores', etiqueta: 'Top Hitters vs Team' },
   { id: 'pitchers', etiqueta: 'Top K Pitchers vs Team' },
 ];
@@ -150,10 +149,20 @@ function renderTopSeccion(equipo, grupo) {
   const columnas = grupo === 'pitching' ? ['G', 'K', 'BB', 'H', 'AVG'] : ['G', 'AB', 'H', 'HR', 'AVG', 'OPS'];
   const crearFila = grupo === 'pitching' ? crearFilaTopPitcher : crearFilaTopBateador;
   const titulo = grupo === 'pitching' ? 'Most strikeouts vs' : 'Most hits vs';
+  const obtenerValores =
+    grupo === 'pitching'
+      ? (j) => {
+          const s = j.stat;
+          return [s.gamesPlayed, s.strikeOuts, s.baseOnBalls, s.hits, s.avg];
+        }
+      : (j) => {
+          const s = j.stat;
+          return [s.gamesPlayed, s.atBats, s.hits, s.homeRuns, s.avg, s.ops];
+        };
 
   return `
     <h4 class="subtitulo">${titulo} ${equipo.nombre}</h4>
-    ${crearTablaJugadores(datos, columnas, crearFila)}
+    ${crearTablaJugadores(`top-${grupo}-${equipo.id}`, datos, columnas, crearFila, obtenerValores)}
   `;
 }
 
@@ -162,24 +171,22 @@ function renderInfoSeccion(equipo) {
 
   return `
     <div class="equipo-registro">
-      <span class="equipo-registro-item">${equipo.leagueNombre}</span>
-      <span class="equipo-registro-item">${equipo.divisionNombre}</span>
-      <span class="equipo-registro-item">${ordinal(equipo.divisionRank)} in division</span>
-      <span class="equipo-registro-item">${ordinal(equipo.leagueRank)} in league</span>
-      <span class="equipo-registro-item">${equipo.wins}-${equipo.losses}</span>
-      <span class="equipo-registro-item">GB ${gb}</span>
+      <span class="equipo-registro-item"><strong>League:</strong> ${equipo.leagueNombre}</span>
+      <span class="equipo-registro-item"><strong>Division:</strong> ${equipo.divisionNombre}</span>
+      <span class="equipo-registro-item"><strong>Division rank:</strong> ${ordinal(equipo.divisionRank)}</span>
+      <span class="equipo-registro-item"><strong>League rank:</strong> ${ordinal(equipo.leagueRank)}</span>
+      <span class="equipo-registro-item"><strong>Record:</strong> ${equipo.wins}-${equipo.losses}</span>
+      <span class="equipo-registro-item"><strong>GB:</strong> ${gb}</span>
     </div>
   `;
 }
 
 function renderSeccionEquipo(equipo, seccion) {
   switch (seccion) {
-    case 'bateadores':
-      return renderTopSeccion(equipo, 'hitting');
     case 'pitchers':
       return renderTopSeccion(equipo, 'pitching');
     default:
-      return renderInfoSeccion(equipo);
+      return renderTopSeccion(equipo, 'hitting');
   }
 }
 
@@ -216,9 +223,10 @@ function crearEquipoCard(equipo) {
       abierto
         ? `
       <div class="detalle">
-        ${crearPestanasSeccionEquipo(equipo.id, seccionActiva.get(equipo.id) ?? 'info')}
+        ${renderInfoSeccion(equipo)}
+        ${crearPestanasSeccionEquipo(equipo.id, seccionActiva.get(equipo.id) ?? 'bateadores')}
         <div class="seccion-contenido">
-          ${renderSeccionEquipo(equipo, seccionActiva.get(equipo.id) ?? 'info')}
+          ${renderSeccionEquipo(equipo, seccionActiva.get(equipo.id) ?? 'bateadores')}
         </div>
       </div>
     `
@@ -236,6 +244,10 @@ function crearEquipoCard(equipo) {
   });
 
   return div;
+}
+
+function refrescarVista() {
+  renderLigas();
 }
 
 function renderLigas() {

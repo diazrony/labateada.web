@@ -67,18 +67,95 @@ function banderaUrl(pais) {
   return codigo ? `https://flagcdn.com/w40/${codigo}.png` : null;
 }
 
-function crearTablaJugadores(jugadores, columnas, crearFila) {
+const TOOLTIPS_STATS = {
+  G: 'Games Played',
+  AB: 'At Bats',
+  R: 'Runs',
+  H: 'Hits',
+  HR: 'Home Runs',
+  RBI: 'Runs Batted In',
+  BB: 'Walks (Base on Balls)',
+  SO: 'Strikeouts',
+  K: 'Strikeouts',
+  AVG: 'Batting Average',
+  OPS: 'On-base Plus Slugging',
+  IP: 'Innings Pitched',
+  ER: 'Earned Runs',
+  ERA: 'Earned Run Average',
+  Opp: 'Opponent',
+  Role: 'Starter or Bullpen role',
+  Dec: 'Decision (Win, Loss or Save)',
+  Date: 'Game Date',
+};
+
+// Estado de orden por tabla: la clave es un id estable por tabla (ej. gamePk +
+// equipo) para que el orden elegido sobreviva a los re-renders del contenedor.
+const sortStateTablas = new Map();
+
+function valorOrdenable(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? String(v).toLowerCase() : n;
+}
+
+function ordenarFilas(tablaId, filas, obtenerValores) {
+  const estado = sortStateTablas.get(tablaId);
+  if (!estado || !obtenerValores) return filas;
+
+  return filas
+    .map((fila, indice) => ({ fila, indice, valores: obtenerValores(fila) }))
+    .sort((a, b) => {
+      const va = valorOrdenable(a.valores[estado.columna]);
+      const vb = valorOrdenable(b.valores[estado.columna]);
+      let cmp;
+      if (va === null && vb === null) cmp = a.indice - b.indice;
+      else if (va === null) cmp = 1;
+      else if (vb === null) cmp = -1;
+      else if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+      else cmp = String(va).localeCompare(String(vb));
+      return estado.asc ? cmp : -cmp;
+    })
+    .map((x) => x.fila);
+}
+
+// Se llama desde el onclick de un <th>; el refresco real de la vista lo hace
+// refrescarVista(), que cada página define apuntando a su propio render.
+function ordenarTabla(event, tablaId, columna) {
+  event.stopPropagation();
+  const actual = sortStateTablas.get(tablaId);
+  sortStateTablas.set(
+    tablaId,
+    actual && actual.columna === columna ? { columna, asc: !actual.asc } : { columna, asc: true }
+  );
+  if (typeof refrescarVista === 'function') refrescarVista();
+}
+
+function crearEncabezadoOrdenable(tablaId, columnas) {
+  const estado = sortStateTablas.get(tablaId);
+  return columnas
+    .map((c, i) => {
+      const activa = estado?.columna === i;
+      const flecha = activa ? (estado.asc ? ' ▲' : ' ▼') : '';
+      const tooltip = TOOLTIPS_STATS[c] ?? c;
+      return `<th class="th-ordenable ${activa ? 'th-activo' : ''}" title="${tooltip}" onclick="ordenarTabla(event, '${tablaId}', ${i})">${c}${flecha}</th>`;
+    })
+    .join('');
+}
+
+function crearTablaJugadores(tablaId, jugadores, columnas, crearFila, obtenerValores) {
   if (jugadores.length === 0) {
     return '<p class="vacio">No data yet.</p>';
   }
+
+  const filasOrdenadas = ordenarFilas(tablaId, jugadores, obtenerValores);
 
   return `
     <div class="boxscore-wrap">
       <table class="tabla-stats">
         <thead>
-          <tr><th></th><th>Player</th>${columnas.map((c) => `<th>${c}</th>`).join('')}</tr>
+          <tr><th></th><th>Player</th>${crearEncabezadoOrdenable(tablaId, columnas)}</tr>
         </thead>
-        <tbody>${jugadores.map(crearFila).join('')}</tbody>
+        <tbody>${filasOrdenadas.map(crearFila).join('')}</tbody>
       </table>
     </div>
   `;
