@@ -9,6 +9,9 @@ npm-debug.log*
 .env
 .env.local
 
+# Wrangler
+.wrangler/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,0 +1,602 @@
+@import "tailwindcss";
+
+@source "../public/**/*.{html,js}";
+
+@theme {
+  --font-sans: "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+
+  --color-canvas: #f6f8f7;
+  --color-surface: #ffffff;
+  --color-line: #e4e9e7;
+  --color-line-strong: #cfd9d5;
+  --color-muted: #64727a;
+  --color-muted-2: #97a2a8;
+
+  --color-ink-950: #071620;
+  --color-ink-900: #0d2740;
+  --color-ink-800: #153252;
+  --color-ink-700: #1e4266;
+  --color-ink-600: #2c5878;
+  --color-ink-100: #e8edf3;
+  --color-ink-50: #f4f7f9;
+
+  --color-aqua-700: #2c6a7d;
+  --color-aqua-600: #34889c;
+  --color-aqua-500: #4aa08f;
+  --color-aqua-400: #7bc9a0;
+  --color-aqua-300: #a3dfc0;
+  --color-aqua-100: #e2f5ec;
+
+  --color-live-600: #d9483d;
+  --color-live-500: #e35b4f;
+  --color-live-100: #fbe4e1;
+
+  --shadow-card: 0 1px 2px rgba(13, 39, 64, 0.05), 0 8px 22px rgba(13, 39, 64, 0.07);
+  --shadow-card-hover: 0 6px 14px rgba(13, 39, 64, 0.09), 0 20px 40px rgba(13, 39, 64, 0.12);
+}
+
+/* CSS custom properties consumed directly from inline styles/SVG fills in
+   app.js (field diamond) and via arbitrary-value utilities below (role
+   badges) — kept outside @theme since they aren't meant to become utilities. */
+:root {
+  --campo-pasto: #4b8f68;
+  --campo-tierra: #cf8f5c;
+  --campo-linea: rgba(255, 255, 255, 0.9);
+  --campo-base: #ffffff;
+  --rol-abridor: #1f8f57;
+  --rol-relevo: #b8791f;
+}
+
+@layer base {
+  body {
+    @apply m-0 bg-canvas text-ink-900 font-sans antialiased;
+    @apply mx-auto max-w-[640px] px-3 pt-4 pb-12 text-[15px] sm:max-w-[900px] sm:px-5 sm:pt-5 sm:pb-16 lg:max-w-[1280px] lg:px-6 xl:max-w-[1600px] 2xl:max-w-[1920px] 2xl:px-8;
+  }
+}
+
+@layer components {
+  header {
+    @apply mb-4 flex items-center justify-center gap-2.5 text-center sm:mb-5;
+  }
+
+  .header-brand {
+    @apply flex items-center gap-2.5;
+  }
+
+  .header-text {
+    @apply flex flex-col items-start text-left;
+  }
+
+  .logo-mark {
+    @apply h-8 w-8 rounded-lg object-contain drop-shadow-sm sm:h-9 sm:w-9;
+  }
+
+  h1 {
+    @apply m-0 bg-gradient-to-r from-ink-900 to-aqua-700 bg-clip-text text-xl font-bold uppercase tracking-wide text-transparent sm:text-2xl;
+  }
+
+  #fecha {
+    @apply m-0 text-xs capitalize leading-tight text-muted;
+  }
+
+  .subtitulo-pagina {
+    @apply m-0 text-xs leading-tight text-muted;
+  }
+
+  /* Page nav (Scores / Teams) */
+
+  .page-nav {
+    @apply mb-5 flex justify-center gap-1.5 sm:mb-6;
+  }
+
+  .page-nav-link {
+    @apply rounded-full px-4 py-1.5 text-sm font-semibold text-muted no-underline transition-colors hover:bg-ink-50 hover:text-ink-900;
+  }
+
+  .page-nav-link.activo {
+    @apply bg-aqua-600 text-white shadow-card hover:bg-aqua-600 hover:text-white;
+  }
+
+  /* Date nav */
+
+  .date-nav {
+    @apply mb-6 flex flex-col items-center gap-2.5;
+  }
+
+  .date-nav-row {
+    @apply flex flex-wrap items-center justify-center gap-2;
+  }
+
+  .date-nav-arrow {
+    @apply inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-surface text-lg leading-none text-ink-700 shadow-card transition hover:border-aqua-400 hover:text-aqua-600 hover:shadow-card-hover;
+  }
+
+  .date-nav-tabs {
+    @apply flex divide-x divide-line overflow-hidden rounded-full border border-line bg-surface shadow-card;
+  }
+
+  .date-tab {
+    @apply min-h-10 cursor-pointer border-0 bg-transparent px-4 text-sm text-muted transition-colors hover:bg-ink-50 hover:text-ink-900;
+  }
+
+  .date-tab.activo {
+    @apply bg-aqua-600 font-semibold text-white hover:bg-aqua-600 hover:text-white;
+  }
+
+  .date-picker {
+    @apply min-h-10 rounded-full border border-line bg-surface px-3.5 font-sans text-sm text-ink-900;
+    color-scheme: light;
+  }
+
+  /* Games grid */
+
+  #juegos {
+    @apply grid grid-cols-1 items-start gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5;
+  }
+
+  .juego.abierto {
+    @apply col-span-full;
+  }
+
+  .estado {
+    @apply col-span-full py-6 text-center text-muted;
+  }
+
+  .juego {
+    @apply rounded-2xl border border-line bg-surface p-4 shadow-card transition-all duration-150 lg:p-5;
+  }
+
+  .juego .encabezado {
+    @apply cursor-pointer;
+  }
+
+  .juego:hover {
+    @apply -translate-y-0.5 border-aqua-300 shadow-card-hover;
+  }
+
+  .juego.abierto {
+    @apply border-aqua-400;
+  }
+
+  .juego .fila {
+    @apply flex items-center justify-between py-0.5;
+  }
+
+  .juego .equipo {
+    @apply inline-flex items-center gap-2 text-base;
+  }
+
+  .juego .equipo.ganador {
+    @apply font-bold text-ink-900;
+  }
+
+  .logo {
+    @apply h-6 w-6 shrink-0 object-contain;
+  }
+
+  .logo-sm {
+    @apply h-4 w-4;
+  }
+
+  .juego .marcador {
+    @apply min-w-[1.5rem] text-right text-lg font-bold tabular-nums text-ink-900;
+  }
+
+  .juego .info {
+    @apply mt-2 flex justify-between border-t border-line pt-2 text-sm text-muted;
+  }
+
+  .juego .info .en-vivo {
+    @apply inline-flex items-center gap-1.5 font-semibold text-live-600;
+  }
+
+  .juego .info .en-vivo::before {
+    content: '';
+    @apply h-1.5 w-1.5 rounded-full bg-live-600;
+    animation: pulso-vivo 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulso-vivo {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.7);
+    }
+  }
+
+  .juego .en-vivo-barra {
+    @apply mt-1.5 flex items-center justify-between gap-2.5 border-t border-line pt-1.5;
+  }
+
+  .bases-mini {
+    @apply relative h-6 w-6 shrink-0;
+  }
+
+  .base-mini {
+    @apply absolute h-2 w-2 rotate-45 border-[1.8px] border-muted-2 bg-surface;
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .base-mini.ocupada {
+    @apply border-live-600 bg-live-600;
+  }
+
+  .base-mini.base-1 {
+    left: 21px;
+    top: 21px;
+  }
+
+  .base-mini.base-2 {
+    left: 12px;
+    top: 3px;
+  }
+
+  .base-mini.base-3 {
+    left: 3px;
+    top: 21px;
+  }
+
+  .conteo-mini {
+    @apply whitespace-nowrap text-xs tabular-nums text-muted;
+  }
+
+  .conteo-mini strong {
+    @apply text-ink-900;
+  }
+
+  .detalle {
+    @apply mt-3 cursor-default border-t border-line pt-3;
+  }
+
+  .seccion-tabs {
+    @apply mb-3 flex gap-1.5 overflow-x-auto pb-1;
+  }
+
+  .seccion-tab {
+    @apply flex-[1_0_auto] cursor-pointer whitespace-nowrap rounded-full border border-transparent bg-ink-50 px-3.5 py-1.5 font-sans text-sm font-medium text-ink-900 transition-colors hover:bg-aqua-100;
+  }
+
+  .seccion-tab.activo {
+    @apply bg-aqua-600 font-semibold text-white shadow-sm hover:bg-aqua-600;
+  }
+
+  .seccion-contenido {
+    animation: aparecer 0.15s ease;
+  }
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .subtitulo {
+    @apply mt-3 mb-1.5 text-xs font-bold uppercase tracking-wider text-muted first:mt-0;
+  }
+
+  .vacio {
+    @apply m-0 text-sm text-muted;
+  }
+
+  /* Tables */
+
+  .boxscore-wrap {
+    @apply overflow-x-auto;
+  }
+
+  table.boxscore {
+    @apply w-full border-collapse text-sm tabular-nums;
+  }
+
+  table.boxscore th,
+  table.boxscore td {
+    @apply whitespace-nowrap px-1.5 py-1 text-center;
+  }
+
+  table.boxscore th:first-child,
+  table.boxscore td:first-child {
+    @apply whitespace-normal text-left;
+  }
+
+  table.boxscore thead th {
+    @apply border-b border-line font-medium text-muted;
+  }
+
+  table.boxscore td:nth-last-child(3),
+  table.boxscore td:nth-last-child(2),
+  table.boxscore td:nth-last-child(1) {
+    @apply font-semibold;
+  }
+
+  .abridor-card {
+    @apply rounded-xl border border-line bg-surface p-3.5;
+  }
+
+  .equipo-registro {
+    @apply mb-2.5 flex flex-wrap gap-1.5;
+  }
+
+  .equipo-registro-item {
+    @apply whitespace-nowrap rounded-full bg-aqua-100 px-2.5 py-1 text-xs font-semibold text-ink-900;
+  }
+
+  .abridor-jugador {
+    @apply mb-2.5 flex items-center gap-2.5;
+  }
+
+  .foto-abridor {
+    @apply h-[38px] w-[38px];
+  }
+
+  .abridor-nombre {
+    @apply text-base font-semibold;
+  }
+
+  .abridor-mano {
+    @apply text-xs font-normal text-muted;
+  }
+
+  .abridor-resumen {
+    @apply mt-0.5 text-sm tabular-nums text-muted;
+  }
+
+  table.tabla-abridor {
+    @apply text-xs;
+  }
+
+  .rol-badge {
+    @apply inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[0.65rem] font-bold;
+  }
+
+  .rol-abridor {
+    color: var(--rol-abridor);
+    background: color-mix(in srgb, var(--rol-abridor) 16%, transparent);
+  }
+
+  .rol-relevo {
+    color: var(--rol-relevo);
+    background: color-mix(in srgb, var(--rol-relevo) 16%, transparent);
+  }
+
+  table.tabla-stats {
+    @apply w-full border-collapse text-sm tabular-nums;
+  }
+
+  table.tabla-stats th,
+  table.tabla-stats td {
+    @apply whitespace-nowrap px-1.5 py-1 text-center;
+  }
+
+  table.tabla-stats th:nth-child(2),
+  table.tabla-stats td.nombre-jugador {
+    @apply whitespace-normal text-left;
+  }
+
+  table.tabla-stats thead th {
+    @apply border-b border-line font-medium text-muted;
+  }
+
+  table.tabla-stats thead th.th-ordenable {
+    @apply cursor-pointer select-none;
+  }
+
+  table.tabla-stats thead th.th-ordenable:hover {
+    @apply text-ink-900;
+  }
+
+  table.tabla-stats thead th.th-activo {
+    @apply font-bold text-ink-900;
+  }
+
+  table.tabla-stats tbody tr:not(:last-child) td {
+    @apply border-b border-line;
+  }
+
+  table.tabla-stats tbody tr:hover td {
+    @apply bg-ink-50;
+  }
+
+  .foto-jugador {
+    @apply block h-[26px] w-[26px] rounded-full bg-line object-cover;
+  }
+
+  .foto-wrap {
+    @apply relative inline-block leading-none;
+  }
+
+  .punto-alineacion {
+    @apply absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full bg-aqua-500 shadow-[0_0_0_1.5px_var(--color-surface)];
+    animation: pulso-vivo 1.4s ease-in-out infinite;
+  }
+
+  .pos-jugador {
+    @apply ml-1 text-xs text-muted;
+  }
+
+  .enfrentamiento {
+    @apply border-b border-line py-2 last:border-b-0 last:pb-0;
+  }
+
+  .fecha-e {
+    @apply mb-0.5 text-xs capitalize text-muted;
+  }
+
+  .fila-e {
+    @apply flex justify-between py-0.5 text-sm;
+  }
+
+  .fila-e span:first-child {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .fila-e .ganador {
+    @apply font-bold text-aqua-700;
+  }
+
+  .jugada-anotadora {
+    @apply flex gap-2 border-b border-line py-2 last:border-b-0 last:pb-0;
+  }
+
+  .jugada-anotadora .logo {
+    @apply mt-0.5 shrink-0;
+  }
+
+  .jugada-cuerpo {
+    @apply min-w-0 flex-1;
+  }
+
+  .jugada-cabecera {
+    @apply mb-0.5 flex justify-between text-xs text-muted;
+  }
+
+  .jugada-marcador {
+    @apply font-semibold tabular-nums;
+  }
+
+  .jugada-desc {
+    @apply mb-1.5 mt-0 text-base leading-snug;
+  }
+
+  .jugada-detalle {
+    @apply flex flex-col gap-0.5 text-sm text-muted;
+  }
+
+  .jugada-detalle strong {
+    @apply font-semibold text-ink-900;
+  }
+
+  footer {
+    @apply mt-12 pb-2 text-center text-sm text-muted;
+  }
+
+  /* Field diamond (Teams tab) */
+
+  .campo-tabs {
+    @apply mb-2.5 flex divide-x divide-line overflow-hidden rounded-full border border-line bg-surface;
+  }
+
+  .campo-tab {
+    @apply inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent px-1.5 py-2 font-sans text-xs text-muted transition-colors hover:bg-ink-50 hover:text-ink-900;
+  }
+
+  .campo-tab.activo {
+    @apply bg-ink-900 font-semibold text-white hover:bg-ink-900 hover:text-white;
+  }
+
+  .campo-tab-logo {
+    @apply h-3.5 w-3.5 shrink-0 object-contain;
+  }
+
+  .campo-diamante {
+    @apply relative mx-auto w-full max-w-[360px];
+    aspect-ratio: 100 / 136;
+  }
+
+  .campo-svg {
+    @apply absolute inset-0 block h-full w-full;
+  }
+
+  .marcador-campo {
+    @apply pointer-events-none absolute z-10 flex w-[4.6rem] flex-col items-center text-center;
+    transform: translate(-50%, -50%);
+  }
+
+  .marcador-pos {
+    @apply mb-[3px] rounded bg-ink-900 px-[0.3rem] py-[0.1rem] text-[0.55rem] font-bold leading-none text-white;
+  }
+
+  .marcador-foto {
+    @apply h-[26px] w-[26px] rounded-full border-[1.5px] border-white bg-line object-cover;
+  }
+
+  .marcador-nombre {
+    @apply mt-[2px] max-w-full whitespace-normal rounded bg-surface px-[0.25rem] py-[0.05rem] text-[0.6rem] font-semibold leading-tight text-ink-900;
+  }
+
+  .marcador-pais {
+    @apply mt-[2px] flex max-w-full items-center justify-center gap-[0.2rem] rounded bg-surface px-[0.25rem] py-[0.05rem] text-[0.5rem] leading-tight text-muted;
+  }
+
+  .marcador-bandera {
+    @apply h-[9px] w-3 shrink-0 rounded-[1px] object-cover;
+  }
+
+  .campo-dh {
+    @apply mt-2.5 flex items-center gap-2 border-t border-line pt-2 text-sm;
+  }
+
+  .campo-dh-etiqueta {
+    @apply text-[0.65rem] font-bold text-muted;
+  }
+
+  .campo-dh-nombre {
+    @apply font-semibold;
+  }
+
+  .campo-dh-pais {
+    @apply text-xs text-muted;
+  }
+
+  .campo-dh-bandera {
+    @apply h-2.5 w-3.5 rounded-[1px] object-cover;
+  }
+
+  /* Teams page */
+
+  .liga {
+    @apply mb-8;
+  }
+
+  .liga-titulo {
+    @apply mb-3.5 text-xl font-bold;
+  }
+
+  .division-grupo {
+    @apply mb-4;
+  }
+
+  .division-titulo {
+    @apply mb-2 text-xs font-bold uppercase tracking-wider text-muted;
+  }
+
+  .equipo-lista {
+    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5;
+  }
+
+  .equipo-card.abierto {
+    @apply col-span-full;
+  }
+
+  .equipo-card {
+    @apply rounded-xl border border-line bg-surface px-3.5 py-3 shadow-card transition-all duration-150;
+  }
+
+  .equipo-card.abierto {
+    @apply border-aqua-400;
+  }
+
+  .equipo-card-encabezado {
+    @apply flex cursor-pointer items-center gap-2.5;
+  }
+
+  .equipo-card-nombre {
+    @apply flex-1 text-base font-semibold;
+  }
+
+  .equipo-card-record {
+    @apply text-sm tabular-nums text-muted;
+  }
+
+  .equipo-jugador {
+    @apply mt-0.5 flex items-center gap-1 text-xs font-normal text-muted;
+  }
+}
