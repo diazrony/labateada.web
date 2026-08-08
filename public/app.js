@@ -1,5 +1,3 @@
-const API_BASE = 'https://statsapi.mlb.com/api/v1';
-
 let ultimosJuegos = [];
 let fechaSeleccionada;
 const expandidos = new Set();
@@ -9,6 +7,7 @@ const cachePersonas = new Map();
 const cachePitcherStats = new Map();
 const cacheStandings = new Map();
 const cacheJugadasAnotadoras = new Map();
+const cacheBateadoresHistorial = new Map();
 const equipoActivo = new Map();
 const abridorEquipoActivo = new Map();
 const seccionActiva = new Map();
@@ -28,60 +27,6 @@ const POSICIONES_CAMPO = {
   LF: { x: 14, y: 23 },
   CF: { x: 50, y: 7 },
   RF: { x: 86, y: 23 },
-};
-
-const MAPA_PAISES = {
-  USA: 'us',
-  'Dominican Republic': 'do',
-  Venezuela: 've',
-  'Puerto Rico': 'pr',
-  Cuba: 'cu',
-  Mexico: 'mx',
-  Japan: 'jp',
-  'South Korea': 'kr',
-  Canada: 'ca',
-  Colombia: 'co',
-  Panama: 'pa',
-  Curacao: 'cw',
-  Netherlands: 'nl',
-  Nicaragua: 'ni',
-  Australia: 'au',
-  Germany: 'de',
-  Brazil: 'br',
-  Bahamas: 'bs',
-  Aruba: 'aw',
-  Honduras: 'hn',
-  Taiwan: 'tw',
-  China: 'cn',
-  'United Kingdom': 'gb',
-  'South Africa': 'za',
-  Italy: 'it',
-  France: 'fr',
-  Jamaica: 'jm',
-  Belize: 'bz',
-  Guam: 'gu',
-  'US Virgin Islands': 'vi',
-  'Czech Republic': 'cz',
-  Israel: 'il',
-  Spain: 'es',
-  Poland: 'pl',
-  'Saudi Arabia': 'sa',
-  India: 'in',
-  Singapore: 'sg',
-  Indonesia: 'id',
-  Sweden: 'se',
-  Ireland: 'ie',
-  Vietnam: 'vn',
-  Ecuador: 'ec',
-  Guatemala: 'gt',
-  'El Salvador': 'sv',
-  'Costa Rica': 'cr',
-  Argentina: 'ar',
-  Chile: 'cl',
-  Peru: 'pe',
-  Portugal: 'pt',
-  Slovakia: 'sk',
-  Lithuania: 'lt',
 };
 
 function fechaHoy() {
@@ -113,21 +58,6 @@ function formatoFechaCorta(fechaISO) {
     month: 'short',
     year: 'numeric',
   });
-}
-
-function ordinal(n) {
-  if (!Number.isFinite(n)) return `${n}`;
-  const resto100 = n % 100;
-  if (resto100 >= 11 && resto100 <= 13) return `${n}th`;
-  const resto10 = n % 10;
-  if (resto10 === 1) return `${n}st`;
-  if (resto10 === 2) return `${n}nd`;
-  if (resto10 === 3) return `${n}rd`;
-  return `${n}th`;
-}
-
-function logoEquipo(teamId) {
-  return `https://www.mlbstatic.com/team-logos/${teamId}.svg`;
 }
 
 function infoEstado(game) {
@@ -199,15 +129,6 @@ function crearBoxscore(game) {
       </table>
     </div>
   `;
-}
-
-function fotoJugador(personId) {
-  return `https://img.mlbstatic.com/mlb-photos/image/upload/w_60,q_100/v1/people/${personId}/headshot/67/current`;
-}
-
-function banderaUrl(pais) {
-  const codigo = MAPA_PAISES[pais];
-  return codigo ? `https://flagcdn.com/w40/${codigo}.png` : null;
 }
 
 async function obtenerPaises(ids) {
@@ -544,21 +465,38 @@ function crearFilaPitcheo(jugador) {
   `;
 }
 
-function crearTablaJugadores(jugadores, columnas, crearFila) {
-  if (jugadores.length === 0) {
-    return '<p class="vacio">No data yet.</p>';
+function crearFilaBateadorHistorial(b) {
+  const s = b.stat;
+  return `
+    <tr>
+      <td><img class="foto-jugador" src="${fotoJugador(b.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
+      <td class="nombre-jugador">${b.nombre}</td>
+      <td>${s.gamesPlayed}</td>
+      <td>${s.atBats}</td>
+      <td>${s.hits}</td>
+      <td>${s.homeRuns}</td>
+      <td>${s.avg}</td>
+      <td>${s.ops}</td>
+    </tr>
+  `;
+}
+
+function renderListaBateadores(game, rosterTeamId, opponentTeamId) {
+  const clave = `${rosterTeamId}-${opponentTeamId}`;
+  if (!cacheBateadoresHistorial.has(clave)) {
+    obtenerBateadoresHistoricos(rosterTeamId, opponentTeamId)
+      .then(() => {
+        if (expandidos.has(game.gamePk)) renderContenedor();
+      })
+      .catch(() => {});
+    return '<p class="vacio">Loading...</p>';
   }
 
-  return `
-    <div class="boxscore-wrap">
-      <table class="tabla-stats">
-        <thead>
-          <tr><th></th><th>Player</th>${columnas.map((c) => `<th>${c}</th>`).join('')}</tr>
-        </thead>
-        <tbody>${jugadores.map(crearFila).join('')}</tbody>
-      </table>
-    </div>
-  `;
+  return crearTablaJugadores(
+    cacheBateadoresHistorial.get(clave),
+    ['G', 'AB', 'H', 'HR', 'AVG', 'OPS'],
+    crearFilaBateadorHistorial
+  );
 }
 
 function crearEstadisticasEquipo(boxscore, lado) {
@@ -691,6 +629,40 @@ async function obtenerEnfrentamientos(game) {
   return ultimos;
 }
 
+async function obtenerBateadoresHistoricos(rosterTeamId, opponentTeamId) {
+  const clave = `${rosterTeamId}-${opponentTeamId}`;
+  if (cacheBateadoresHistorial.has(clave)) return cacheBateadoresHistorial.get(clave);
+
+  const respRoster = await fetch(`${API_BASE}/teams/${rosterTeamId}/roster?rosterType=active`);
+  if (!respRoster.ok) throw new Error(`HTTP ${respRoster.status}`);
+  const datosRoster = await respRoster.json();
+
+  const bateadores = (datosRoster.roster ?? []).filter((j) => j.position.type !== 'Pitcher');
+
+  let resultado = [];
+  if (bateadores.length > 0) {
+    const ids = bateadores.map((j) => j.person.id);
+    const respStats = await fetch(
+      `${API_BASE}/people?personIds=${ids.join(',')}&hydrate=stats(group=hitting,type=vsTeamTotal,opposingTeamId=${opponentTeamId},sportId=1)`
+    );
+    if (!respStats.ok) throw new Error(`HTTP ${respStats.status}`);
+    const datosStats = await respStats.json();
+
+    resultado = (datosStats.people ?? [])
+      .map((persona) => {
+        const stat = persona.stats?.[0]?.splits?.[0]?.stat;
+        if (!stat || Number(stat.hits) === 0) return null;
+        return { id: persona.id, nombre: persona.boxscoreName ?? persona.fullName, stat };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.stat.hits - a.stat.hits || Number(b.stat.avg) - Number(a.stat.avg))
+      .slice(0, 5);
+  }
+
+  cacheBateadoresHistorial.set(clave, resultado);
+  return resultado;
+}
+
 function crearEnfrentamientos(partidos) {
   if (partidos.length === 0) {
     return '<p class="vacio">No recent matchups.</p>';
@@ -737,6 +709,18 @@ function renderHistorialSeccion(game) {
       })();
 
   return `<h4 class="subtitulo">Last 3 Matchups</h4>${contenido}`;
+}
+
+function renderBateadoresSeccion(game) {
+  const away = game.teams.away.team;
+  const home = game.teams.home.team;
+
+  return `
+    <h4 class="subtitulo">Top Hitters vs ${home.name}</h4>
+    ${renderListaBateadores(game, away.id, home.id)}
+    <h4 class="subtitulo">Top Hitters vs ${away.name}</h4>
+    ${renderListaBateadores(game, home.id, away.id)}
+  `;
 }
 
 function crearJugadaAnotadora(play, game) {
@@ -827,6 +811,7 @@ const SECCIONES_JUEGO = [
   { id: 'abridores', etiqueta: 'Starting Pitchers' },
   { id: 'equipos', etiqueta: 'Teams' },
   { id: 'historial', etiqueta: 'Matchups' },
+  { id: 'bateadores', etiqueta: 'Top Hitters' },
 ];
 
 function crearPestanasSeccion(gamePk, activa) {
@@ -849,6 +834,8 @@ function renderSeccion(game, seccion) {
       return renderEquipoSlot(game);
     case 'historial':
       return renderHistorialSeccion(game);
+    case 'bateadores':
+      return renderBateadoresSeccion(game);
     default:
       return renderResumenSeccion(game);
   }
