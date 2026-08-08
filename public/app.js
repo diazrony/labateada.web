@@ -84,7 +84,7 @@ function infoEstado(game) {
 
   if (estado === 'In Progress' || estado === 'Manager challenge') {
     const linea = game.linescore;
-    const mitad = linea?.inningState === 'Top' ? 'Alta' : 'Baja';
+    const mitad = linea?.inningState === 'Top' ? 'Top' : 'Bot';
     return { texto: `${mitad} ${linea?.currentInningOrdinal ?? ''}`.trim(), enVivo: true };
   }
 
@@ -97,6 +97,31 @@ function infoEstado(game) {
   }
 
   return { texto: formatoHora(game.gameDate), enVivo: false };
+}
+
+function crearBasesMini(offense) {
+  const ocupada = (base) => (offense?.[base] ? 'ocupada' : '');
+  return `
+    <div class="bases-mini" title="Runners on base" aria-hidden="true">
+      <span class="base-mini base-2 ${ocupada('second')}"></span>
+      <span class="base-mini base-3 ${ocupada('third')}"></span>
+      <span class="base-mini base-1 ${ocupada('first')}"></span>
+    </div>
+  `;
+}
+
+function crearEstadoEnVivo(game) {
+  const linea = game.linescore;
+  if (linea?.balls === undefined || linea?.strikes === undefined || linea?.outs === undefined) {
+    return '';
+  }
+
+  return `
+    <div class="en-vivo-barra">
+      ${crearBasesMini(linea.offense)}
+      <span class="conteo-mini"><strong>${linea.balls}-${linea.strikes}</strong> · ${linea.outs} out${linea.outs === 1 ? '' : 's'}</span>
+    </div>
+  `;
 }
 
 function crearBoxscore(game) {
@@ -930,6 +955,7 @@ function crearTarjetaJuego(game) {
         <span>${game.venue?.name ?? ''}</span>
         <span class="${estado.enVivo ? 'en-vivo' : ''}">${estado.texto}</span>
       </div>
+      ${estado.enVivo ? crearEstadoEnVivo(game) : ''}
     </div>
     ${
       abierto
