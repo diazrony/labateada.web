@@ -11,6 +11,7 @@ const MIME_TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.ico': 'image/x-icon',
   '.png': 'image/png',
+  '.json': 'application/manifest+json; charset=utf-8',
 };
 
 const server = http.createServer((req, res) => {

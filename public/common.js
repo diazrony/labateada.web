@@ -171,3 +171,9 @@ function ordinal(n) {
   if (resto10 === 3) return `${n}rd`;
   return `${n}th`;
 }
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => console.error('SW registration failed:', err));
+  });
+}
