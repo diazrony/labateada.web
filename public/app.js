@@ -5,6 +5,7 @@ const cacheEnfrentamientos = new Map();
 const cacheBoxscoreDetalle = new Map();
 const cachePersonas = new Map();
 const cachePitcherStats = new Map();
+const cacheEnfrentamientosAbridor = new Map();
 const cacheStandings = new Map();
 const cacheJugadasAnotadoras = new Map();
 const cacheBateadoresHistorial = new Map();
@@ -217,6 +218,29 @@ async function obtenerDatosAbridor(personId, temporada) {
   return resultado;
 }
 
+async function obtenerEnfrentamientosAbridor(personId, opponentTeamId, temporadaActual) {
+  const clave = `${personId}-${opponentTeamId}`;
+  if (cacheEnfrentamientosAbridor.has(clave)) {
+    return cacheEnfrentamientosAbridor.get(clave);
+  }
+
+  let encontrados = [];
+  for (let anio = temporadaActual; anio > temporadaActual - 5 && encontrados.length < 5; anio--) {
+    const resp = await fetch(`${API_BASE}/people/${personId}/stats?stats=gameLog&group=pitching&season=${anio}&sportId=1`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const splits = data.stats?.[0]?.splits ?? [];
+    encontrados = encontrados.concat(splits.filter((s) => s.opponent?.id === opponentTeamId));
+  }
+
+  const ultimos = encontrados
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5);
+
+  cacheEnfrentamientosAbridor.set(clave, ultimos);
+  return ultimos;
+}
+
 async function obtenerStandings(temporada) {
   if (cacheStandings.has(temporada)) {
     return cacheStandings.get(temporada);
@@ -406,6 +430,50 @@ function crearTarjetaAbridor(datos) {
   `;
 }
 
+function crearTarjetaEnfrentamientosAbridor(personId, opponentTeamId, nombreRival, datos) {
+  if (datos.length === 0) {
+    return `<div class="abridor-card"><p class="vacio">No previous starts vs ${nombreRival}.</p></div>`;
+  }
+
+  const tablaId = `abridor-vs-${personId}-${opponentTeamId}`;
+  const columnas = ['Date', 'Opp', 'Role', 'IP', 'H', 'R', 'ER', 'BB', 'K', 'Dec'];
+  const juegosOrdenados = ordenarFilas(tablaId, datos, (split) => {
+    const s = split.stat;
+    const esAbridor = Number(s.gamesStarted) === 1;
+    const decision = s.wins === 1 ? 'W' : s.losses === 1 ? 'L' : s.saves === 1 ? 'SV' : '';
+    return [split.date, split.opponent?.name ?? '', esAbridor ? 'SP' : 'RP', s.inningsPitched, s.hits, s.runs, s.earnedRuns, s.baseOnBalls, s.strikeOuts, decision];
+  });
+
+  return `
+    <div class="abridor-card">
+      <div class="boxscore-wrap">
+        <table class="tabla-stats tabla-abridor">
+          <thead>
+            <tr>${crearEncabezadoOrdenable(tablaId, columnas)}</tr>
+          </thead>
+          <tbody>${juegosOrdenados.map(crearFilaGameLogAbridor).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderEnfrentamientosAbridor(game, probable, rival) {
+  const clave = `${probable.id}-${rival.id}`;
+  const encabezado = `<h4 class="subtitulo">vs ${rival.name} (last starts)</h4>`;
+
+  if (!cacheEnfrentamientosAbridor.has(clave)) {
+    obtenerEnfrentamientosAbridor(probable.id, rival.id, game.season)
+      .then(() => {
+        if (expandidos.has(game.gamePk)) renderContenedor();
+      })
+      .catch(() => {});
+    return `${encabezado}<div class="abridor-card"><p class="vacio">Loading...</p></div>`;
+  }
+
+  return `${encabezado}${crearTarjetaEnfrentamientosAbridor(probable.id, rival.id, rival.name, cacheEnfrentamientosAbridor.get(clave))}`;
+}
+
 function cambiarAbridorEquipo(event, gamePk, lado) {
   event.stopPropagation();
   abridorEquipoActivo.set(gamePk, lado);
@@ -453,6 +521,7 @@ function renderAbridoresSlot(game) {
   const lado = abridorEquipoActivo.get(game.gamePk) ?? 'away';
   const tabs = crearPestanasAbridor(game, lado);
   const infoEquipo = lado === 'away' ? game.teams.away : game.teams.home;
+  const infoRival = lado === 'away' ? game.teams.home : game.teams.away;
   const probable = infoEquipo.probablePitcher;
 
   const registro = renderRegistroEquipo(game, infoEquipo.team.id);
@@ -471,7 +540,9 @@ function renderAbridoresSlot(game) {
     tarjeta = crearTarjetaAbridor(cachePitcherStats.get(probable.id));
   }
 
-  return `${tabs}${registro}${tarjeta}`;
+  const historial = probable ? renderEnfrentamientosAbridor(game, probable, infoRival.team) : '';
+
+  return `${tabs}${registro}${tarjeta}${historial}`;
 }
 
 function crearFilaBateo(jugador) {
