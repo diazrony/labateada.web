@@ -5,34 +5,44 @@
 @theme {
   --font-sans: "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 
-  --color-canvas: #f6f8f7;
+  /* Design system tokens ------------------------------------------------ */
+
+  --color-canvas: #fdfbfa;
   --color-surface: #ffffff;
-  --color-line: #e4e9e7;
-  --color-line-strong: #cfd9d5;
-  --color-muted: #64727a;
-  --color-muted-2: #97a2a8;
+  --color-surface-secondary: #f5f1ec;
+  --color-line: #e7e1da;
+  --color-line-strong: #d8cfc4;
+  --color-muted: #5b6470;
+  --color-muted-2: #98938c;
 
-  --color-ink-950: #071620;
-  --color-ink-900: #0d2740;
-  --color-ink-800: #153252;
-  --color-ink-700: #1e4266;
-  --color-ink-600: #2c5878;
-  --color-ink-100: #e8edf3;
-  --color-ink-50: #f4f7f9;
+  --color-ink-950: #060c14;
+  --color-ink-900: #0d1a2c;
+  --color-ink-800: #16283c;
+  --color-ink-700: #203752;
+  --color-ink-600: #2e4a68;
+  --color-ink-100: #e7e9ed;
+  --color-ink-50: #f3f5f7;
 
-  --color-aqua-700: #2c6a7d;
-  --color-aqua-600: #34889c;
-  --color-aqua-500: #4aa08f;
-  --color-aqua-400: #7bc9a0;
-  --color-aqua-300: #a3dfc0;
-  --color-aqua-100: #e2f5ec;
+  --color-accent-700: #8f2723;
+  --color-accent-600: #b4322d;
+  --color-accent-500: #c4453f;
+  --color-accent-400: #d97f79;
+  --color-accent-300: #e6aca8;
+  --color-accent-100: #f8e3e1;
 
-  --color-live-600: #d9483d;
-  --color-live-500: #e35b4f;
-  --color-live-100: #fbe4e1;
+  --color-primary: #b4322d;
+  --color-primary-hover: #8f2723;
 
-  --shadow-card: 0 1px 2px rgba(13, 39, 64, 0.05), 0 8px 22px rgba(13, 39, 64, 0.07);
-  --shadow-card-hover: 0 6px 14px rgba(13, 39, 64, 0.09), 0 20px 40px rgba(13, 39, 64, 0.12);
+  --color-live-600: #b4322d;
+  --color-live-500: #c4453f;
+  --color-live-100: #f8e3e1;
+
+  --color-success: #1f8f57;
+  --color-warning: #b8791f;
+  --color-error: #b4322d;
+
+  --shadow-xs: 0 1px 2px rgba(13, 26, 44, 0.06);
+  --shadow-sticky: 0 4px 10px rgba(13, 26, 44, 0.05);
 }
 
 /* CSS custom properties consumed directly from inline styles/SVG fills in
@@ -49,89 +59,161 @@
 
 @layer base {
   body {
-    @apply m-0 bg-canvas text-ink-900 font-sans antialiased;
-    @apply mx-auto max-w-[640px] px-3 pt-4 pb-12 text-[15px] sm:max-w-[900px] sm:px-5 sm:pt-5 sm:pb-16 lg:max-w-[1280px] lg:px-6 xl:max-w-[1600px] 2xl:max-w-[1920px] 2xl:px-8;
+    @apply m-0 bg-canvas text-[15px] text-ink-900 font-sans antialiased;
+  }
+
+  a {
+    @apply text-inherit;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  [tabindex]:focus-visible {
+    @apply rounded-sm outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-canvas;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer components {
-  header {
-    @apply mb-4 flex items-center justify-center gap-2.5 text-center sm:mb-5;
+  /* App shell ----------------------------------------------------------- */
+
+  .app-shell {
+    @apply min-h-screen;
   }
 
-  .header-brand {
-    @apply flex items-center gap-2.5;
+  .sidebar {
+    @apply hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-52 lg:flex-col lg:border-r lg:border-line lg:bg-surface lg:px-3 lg:py-5;
   }
 
-  .header-text {
-    @apply flex flex-col items-start text-left;
+  .sidebar-brand {
+    @apply mb-6 flex items-center px-2;
+  }
+
+  .sidebar-nav {
+    @apply flex flex-col gap-1;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-muted no-underline transition-colors hover:bg-surface-secondary hover:text-ink-900;
+  }
+
+  .sidebar-link.activo {
+    @apply bg-accent-100 text-accent-700 hover:bg-accent-100 hover:text-accent-700;
+  }
+
+  .sidebar-foot {
+    @apply mt-auto px-3 pt-4 text-xs leading-snug text-muted-2;
+  }
+
+  .nav-icon {
+    @apply h-5 w-5 shrink-0;
+  }
+
+  .app-main {
+    @apply lg:pl-52;
+  }
+
+  .content-container {
+    @apply mx-auto w-full max-w-[640px] px-3 pb-24 pt-4 sm:max-w-[900px] sm:px-5 sm:pt-5 lg:max-w-[1100px] lg:px-6 lg:pb-16 xl:max-w-[1320px] 2xl:max-w-[1520px] 2xl:px-8;
+  }
+
+  .page-head {
+    @apply sticky top-0 z-30 -mx-3 mb-4 bg-canvas/95 px-3 pb-3 pt-1 backdrop-blur-sm sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6;
+  }
+
+  .topbar {
+    @apply flex items-center gap-3 py-2;
+  }
+
+  .topbar-brand {
+    @apply flex items-center gap-2 lg:hidden;
+  }
+
+  .topbar-context {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+
+  .topbar-title {
+    @apply m-0 truncate text-lg font-bold text-ink-900 sm:text-xl;
+  }
+
+  .topbar-date,
+  .subtitulo-pagina {
+    @apply m-0 truncate text-xs capitalize leading-tight text-muted;
   }
 
   .logo-mark {
-    @apply h-8 w-8 rounded-lg object-contain drop-shadow-sm sm:h-9 sm:w-9;
+    @apply h-auto w-36 shrink-0 object-contain;
   }
 
-  h1 {
-    @apply m-0 bg-gradient-to-r from-ink-900 to-aqua-700 bg-clip-text text-xl font-bold uppercase tracking-wide text-transparent sm:text-2xl;
+  .logo-mark-sm {
+    @apply h-8 w-8 shrink-0 rounded-md object-contain;
   }
 
-  #fecha {
-    @apply m-0 text-xs capitalize leading-tight text-muted;
+  /* Bottom navigation (mobile) ------------------------------------------ */
+
+  .bottom-nav {
+    @apply fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm lg:hidden;
   }
 
-  .subtitulo-pagina {
-    @apply m-0 text-xs leading-tight text-muted;
+  .bottom-nav-link {
+    @apply flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-muted no-underline transition-colors;
   }
 
-  /* Page nav (Scores / Teams) */
-
-  .page-nav {
-    @apply mb-5 flex justify-center gap-1.5 sm:mb-6;
+  .bottom-nav-link.activo {
+    @apply text-accent-700;
   }
 
-  .page-nav-link {
-    @apply rounded-full px-4 py-1.5 text-sm font-semibold text-muted no-underline transition-colors hover:bg-ink-50 hover:text-ink-900;
+  .bottom-nav-icon {
+    @apply h-5 w-5;
   }
 
-  .page-nav-link.activo {
-    @apply bg-aqua-600 text-white shadow-card hover:bg-aqua-600 hover:text-white;
-  }
-
-  /* Date nav */
+  /* Date nav -------------------------------------------------------------- */
 
   .date-nav {
-    @apply mb-6 flex flex-col items-center gap-2.5;
+    @apply flex flex-wrap items-center justify-between gap-2;
   }
 
   .date-nav-row {
-    @apply flex flex-wrap items-center justify-center gap-2;
+    @apply flex flex-wrap items-center gap-1.5;
   }
 
   .date-nav-arrow {
-    @apply inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-surface text-lg leading-none text-ink-700 shadow-card transition hover:border-aqua-400 hover:text-aqua-600 hover:shadow-card-hover;
+    @apply inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-line bg-surface text-base leading-none text-ink-700 transition-colors hover:border-accent-400 hover:text-accent-600;
   }
 
   .date-nav-tabs {
-    @apply flex divide-x divide-line overflow-hidden rounded-full border border-line bg-surface shadow-card;
+    @apply flex divide-x divide-line overflow-hidden rounded-md border border-line bg-surface;
   }
 
   .date-tab {
-    @apply min-h-10 cursor-pointer border-0 bg-transparent px-4 text-sm text-muted transition-colors hover:bg-ink-50 hover:text-ink-900;
+    @apply min-h-9 cursor-pointer border-0 bg-transparent px-3.5 text-sm font-medium text-muted transition-colors hover:bg-surface-secondary hover:text-ink-900;
   }
 
   .date-tab.activo {
-    @apply bg-aqua-600 font-semibold text-white hover:bg-aqua-600 hover:text-white;
+    @apply bg-accent-600 font-semibold text-white hover:bg-accent-600 hover:text-white;
   }
 
   .date-picker {
-    @apply min-h-10 rounded-full border border-line bg-surface px-3.5 font-sans text-sm text-ink-900;
+    @apply min-h-9 rounded-md border border-line bg-surface px-3 font-sans text-sm text-ink-900;
     color-scheme: light;
   }
 
-  /* Games grid */
+  /* Games grid & card ------------------------------------------------------ */
 
   #juegos {
-    @apply grid grid-cols-1 items-start gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5;
+    @apply grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
   }
 
   .juego.abierto {
@@ -139,11 +221,11 @@
   }
 
   .estado {
-    @apply col-span-full py-6 text-center text-muted;
+    @apply col-span-full py-10 text-center text-sm text-muted;
   }
 
   .juego {
-    @apply rounded-2xl border border-line bg-surface p-4 shadow-card transition-all duration-150 lg:p-5;
+    @apply cursor-default rounded-lg border border-line bg-surface p-3 transition-colors duration-150;
   }
 
   .juego .encabezado {
@@ -151,27 +233,35 @@
   }
 
   .juego:hover {
-    @apply -translate-y-0.5 border-aqua-300 shadow-card-hover;
+    @apply border-line-strong;
   }
 
   .juego.abierto {
-    @apply border-aqua-400;
+    @apply border-accent-400;
   }
 
   .juego .fila {
-    @apply flex items-center justify-between py-0.5;
+    @apply flex items-center justify-between gap-2 py-0.5;
   }
 
   .juego .equipo {
-    @apply inline-flex items-center gap-2 text-base;
+    @apply inline-flex min-w-0 flex-1 items-center gap-2 text-[0.95rem] text-ink-800;
   }
 
   .juego .equipo.ganador {
     @apply font-bold text-ink-900;
   }
 
+  .equipo-nombre {
+    @apply truncate;
+  }
+
+  .equipo-record {
+    @apply shrink-0 text-xs font-normal tabular-nums text-muted;
+  }
+
   .logo {
-    @apply h-6 w-6 shrink-0 object-contain;
+    @apply h-5 w-5 shrink-0 object-contain;
   }
 
   .logo-sm {
@@ -179,20 +269,37 @@
   }
 
   .juego .marcador {
-    @apply min-w-[1.5rem] text-right text-lg font-bold tabular-nums text-ink-900;
+    @apply min-w-[1.5rem] shrink-0 text-right text-base font-bold tabular-nums text-ink-900;
   }
 
   .juego .info {
-    @apply mt-2 flex justify-between border-t border-line pt-2 text-sm text-muted;
+    @apply mt-2 flex items-center justify-between gap-2 border-t border-line pt-2 text-xs text-muted;
   }
 
-  .juego .info .en-vivo {
-    @apply inline-flex items-center gap-1.5 font-semibold text-live-600;
+  .juego-venue {
+    @apply truncate text-right;
   }
 
-  .juego .info .en-vivo::before {
+  .badge-estado {
+    @apply inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wide text-muted;
+  }
+
+  .badge-estado.badge-scheduled,
+  .badge-estado.badge-off {
+    @apply bg-surface-secondary text-muted;
+  }
+
+  .badge-estado.badge-final {
+    @apply bg-ink-50 text-ink-700;
+  }
+
+  .badge-estado.badge-live {
+    @apply bg-live-100 text-live-600;
+  }
+
+  .badge-estado.en-vivo::before {
     content: '';
-    @apply h-1.5 w-1.5 rounded-full bg-live-600;
+    @apply inline-block h-1.5 w-1.5 rounded-full bg-live-600;
     animation: pulso-vivo 1.4s ease-in-out infinite;
   }
 
@@ -248,20 +355,52 @@
     @apply text-ink-900;
   }
 
+  .juego-probables {
+    @apply mt-1.5 flex items-center justify-between gap-2 border-t border-line pt-1.5 text-xs text-muted;
+  }
+
+  .probable-pitcher {
+    @apply flex min-w-0 items-center gap-1.5 truncate;
+  }
+
+  .probable-tag {
+    @apply shrink-0 rounded bg-surface-secondary px-1 py-0.5 text-[0.6rem] font-bold text-ink-700;
+  }
+
+  .probable-vs {
+    @apply shrink-0 text-[0.65rem] font-semibold uppercase text-muted-2;
+  }
+
+  /* Skeleton loaders -------------------------------------------------------- */
+
+  .skeleton {
+    @apply block animate-pulse rounded bg-line;
+  }
+
+  .skeleton-card .skeleton {
+    @apply bg-line;
+  }
+
+  /* Empty / error states ----------------------------------------------------- */
+
+  .retry-btn {
+    @apply mt-3 inline-flex cursor-pointer items-center justify-center rounded-md border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink-700 transition-colors hover:border-accent-400 hover:text-accent-600;
+  }
+
   .detalle {
     @apply mt-3 cursor-default border-t border-line pt-3;
   }
 
   .seccion-tabs {
-    @apply mb-3 flex gap-1.5 overflow-x-auto pb-1;
+    @apply mb-3 flex gap-1 overflow-x-auto pb-1;
   }
 
   .seccion-tab {
-    @apply flex-[1_0_auto] cursor-pointer whitespace-nowrap rounded-full border border-transparent bg-ink-50 px-3.5 py-1.5 font-sans text-sm font-medium text-ink-900 transition-colors hover:bg-aqua-100;
+    @apply flex-[1_0_auto] cursor-pointer whitespace-nowrap rounded-md border border-transparent bg-surface-secondary px-3 py-1.5 font-sans text-xs font-semibold text-ink-700 transition-colors hover:bg-accent-100;
   }
 
   .seccion-tab.activo {
-    @apply bg-aqua-600 font-semibold text-white shadow-sm hover:bg-aqua-600;
+    @apply border-accent-600 bg-accent-600 text-white hover:bg-accent-600 hover:text-white;
   }
 
   .seccion-contenido {
@@ -287,7 +426,7 @@
     @apply m-0 text-sm text-muted;
   }
 
-  /* Tables */
+  /* Tables ------------------------------------------------------------------- */
 
   .boxscore-wrap {
     @apply overflow-x-auto;
@@ -318,7 +457,7 @@
   }
 
   .abridor-card {
-    @apply rounded-xl border border-line bg-surface p-3.5;
+    @apply rounded-md border border-line bg-surface p-3;
   }
 
   .equipo-registro {
@@ -326,7 +465,7 @@
   }
 
   .equipo-registro-item {
-    @apply whitespace-nowrap rounded-full bg-aqua-100 px-2.5 py-1 text-xs font-semibold text-ink-900;
+    @apply whitespace-nowrap rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-900;
   }
 
   .abridor-jugador {
@@ -359,7 +498,7 @@
   }
 
   .rol-badge {
-    @apply inline-block whitespace-nowrap rounded-full px-1.5 py-0.5 text-[0.65rem] font-bold;
+    @apply inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-[0.65rem] font-bold;
   }
 
   .rol-abridor {
@@ -407,7 +546,7 @@
   }
 
   table.tabla-stats tbody tr:hover td {
-    @apply bg-ink-50;
+    @apply bg-surface-secondary;
   }
 
   .foto-jugador {
@@ -419,7 +558,7 @@
   }
 
   .punto-alineacion {
-    @apply absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full bg-aqua-500 shadow-[0_0_0_1.5px_var(--color-surface)];
+    @apply absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full bg-accent-500 shadow-[0_0_0_1.5px_var(--color-surface)];
     animation: pulso-vivo 1.4s ease-in-out infinite;
   }
 
@@ -444,7 +583,7 @@
   }
 
   .fila-e .ganador {
-    @apply font-bold text-aqua-700;
+    @apply font-bold text-ink-900;
   }
 
   .jugada-anotadora {
@@ -480,17 +619,17 @@
   }
 
   footer {
-    @apply mt-12 pb-2 text-center text-sm text-muted;
+    @apply mt-10 pb-2 text-center text-xs text-muted;
   }
 
-  /* Game detail page (game.html) */
+  /* Game detail page (game.html) --------------------------------------------- */
 
   .game-nav {
-    @apply mb-5 flex flex-wrap items-center justify-between gap-2.5;
+    @apply flex flex-wrap items-center justify-between gap-2.5;
   }
 
   .game-nav-back {
-    @apply rounded-full border border-line bg-surface px-4 py-1.5 text-sm font-semibold text-ink-700 no-underline shadow-card transition hover:border-aqua-400 hover:text-aqua-600;
+    @apply rounded-md border border-line bg-surface px-3.5 py-1.5 text-sm font-semibold text-ink-700 no-underline transition-colors hover:border-accent-400 hover:text-accent-600;
   }
 
   .game-nav-arrows {
@@ -498,7 +637,7 @@
   }
 
   .game-nav-arrow {
-    @apply min-h-9 cursor-pointer whitespace-nowrap rounded-full border border-line bg-surface px-3.5 font-sans text-sm text-ink-700 shadow-card transition hover:border-aqua-400 hover:text-aqua-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-700;
+    @apply min-h-9 cursor-pointer whitespace-nowrap rounded-md border border-line bg-surface px-3.5 font-sans text-sm text-ink-700 transition-colors hover:border-accent-400 hover:text-accent-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-700;
   }
 
   .juego-detalle {
@@ -510,7 +649,7 @@
   }
 
   .juego-detalle:hover {
-    @apply translate-y-0 border-line shadow-card;
+    @apply border-line;
   }
 
   .juego-detalle .encabezado {
@@ -525,14 +664,14 @@
     @apply text-2xl;
   }
 
-  /* Last 10 games (Teams page) */
+  /* Last 10 games (Teams page) ------------------------------------------------ */
 
   .partidos-lista {
     @apply flex flex-col;
   }
 
   .partido-mini {
-    @apply flex items-center gap-2.5 border-b border-line py-2 text-sm text-ink-900 no-underline transition-colors last:border-b-0 last:pb-0 hover:bg-ink-50;
+    @apply flex items-center gap-2.5 border-b border-line py-2 text-sm text-ink-900 no-underline transition-colors last:border-b-0 last:pb-0 hover:bg-surface-secondary;
   }
 
   .partido-fecha {
@@ -552,7 +691,7 @@
   }
 
   .partido-gano {
-    @apply bg-aqua-100 text-aqua-700;
+    @apply bg-success/15 text-success;
   }
 
   .partido-perdio {
@@ -563,14 +702,14 @@
     @apply w-12 shrink-0 text-right font-semibold tabular-nums text-ink-900;
   }
 
-  /* Field diamond (Teams tab) */
+  /* Field diamond (Teams tab) -------------------------------------------------- */
 
   .campo-tabs {
-    @apply mb-2.5 flex divide-x divide-line overflow-hidden rounded-full border border-line bg-surface;
+    @apply mb-2.5 flex divide-x divide-line overflow-hidden rounded-md border border-line bg-surface;
   }
 
   .campo-tab {
-    @apply inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent px-1.5 py-2 font-sans text-xs text-muted transition-colors hover:bg-ink-50 hover:text-ink-900;
+    @apply inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent px-1.5 py-2 font-sans text-xs text-muted transition-colors hover:bg-surface-secondary hover:text-ink-900;
   }
 
   .campo-tab.activo {
@@ -639,7 +778,7 @@
     @apply h-2.5 w-3.5 rounded-[1px] object-cover;
   }
 
-  /* Teams page */
+  /* Teams page ------------------------------------------------------------------ */
 
   .liga {
     @apply mb-8;
@@ -658,7 +797,7 @@
   }
 
   .equipo-lista {
-    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5;
+    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
   }
 
   .equipo-card.abierto {
@@ -666,11 +805,15 @@
   }
 
   .equipo-card {
-    @apply rounded-xl border border-line bg-surface px-3.5 py-3 shadow-card transition-all duration-150;
+    @apply rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors duration-150;
+  }
+
+  .equipo-card:hover {
+    @apply border-line-strong;
   }
 
   .equipo-card.abierto {
-    @apply border-aqua-400;
+    @apply border-accent-400;
   }
 
   .equipo-card-encabezado {
@@ -678,11 +821,11 @@
   }
 
   .equipo-card-nombre {
-    @apply flex-1 text-base font-semibold;
+    @apply flex-1 truncate text-base font-semibold;
   }
 
   .equipo-card-record {
-    @apply text-sm tabular-nums text-muted;
+    @apply shrink-0 text-sm tabular-nums text-muted;
   }
 
   .equipo-jugador {

@@ -405,7 +405,12 @@ async function cargarEquipos() {
     renderLigas();
     desplazarAEquipoDesdeURL();
   } catch (err) {
-    contenedor.innerHTML = `<p class="estado">Error loading teams: ${err.message}</p>`;
+    contenedor.innerHTML = `
+      <p class="estado">
+        Error loading teams: ${err.message}
+        <br><button type="button" class="retry-btn" onclick="cargarEquipos()">Retry</button>
+      </p>
+    `;
   }
 }
 

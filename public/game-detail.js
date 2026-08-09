@@ -54,24 +54,24 @@ function infoEstado(game) {
   const estado = game.status.detailedState;
 
   if (estado === 'Final' || estado === 'Game Over') {
-    return { texto: 'Final', enVivo: false };
+    return { texto: 'Final', enVivo: false, clase: 'final' };
   }
 
   if (estado === 'In Progress' || estado === 'Manager challenge') {
     const linea = game.linescore;
     const mitad = linea?.inningState === 'Top' ? 'Top' : 'Bot';
-    return { texto: `${mitad} ${linea?.currentInningOrdinal ?? ''}`.trim(), enVivo: true };
+    return { texto: `${mitad} ${linea?.currentInningOrdinal ?? ''}`.trim(), enVivo: true, clase: 'live' };
   }
 
   if (estado === 'Postponed' || estado === 'Cancelled') {
-    return { texto: estado === 'Postponed' ? 'Pospuesto' : 'Cancelado', enVivo: false };
+    return { texto: estado === 'Postponed' ? 'Pospuesto' : 'Cancelado', enVivo: false, clase: 'off' };
   }
 
   if (estado === 'Delayed' || estado === 'Delayed Start') {
-    return { texto: 'Retrasado', enVivo: false };
+    return { texto: 'Retrasado', enVivo: false, clase: 'off' };
   }
 
-  return { texto: formatoHora(game.gameDate), enVivo: false };
+  return { texto: formatoHora(game.gameDate), enVivo: false, clase: 'scheduled' };
 }
 
 function crearBasesMini(offense) {
@@ -99,6 +99,29 @@ function crearEstadoEnVivo(game) {
   `;
 }
 
+function crearBadgeRecord(record) {
+  if (!record || record.wins === undefined || record.losses === undefined) return '';
+  return `<span class="equipo-record">${record.wins}-${record.losses}</span>`;
+}
+
+function nombreProbable(probable) {
+  return probable?.fullName ?? 'TBD';
+}
+
+function crearProbablesPreview(game) {
+  const awayP = game.teams.away.probablePitcher;
+  const homeP = game.teams.home.probablePitcher;
+  if (!awayP && !homeP) return '';
+
+  return `
+    <div class="juego-probables">
+      <span class="probable-pitcher"><span class="probable-tag">SP</span>${nombreProbable(awayP)}</span>
+      <span class="probable-vs">vs</span>
+      <span class="probable-pitcher"><span class="probable-tag">SP</span>${nombreProbable(homeP)}</span>
+    </div>
+  `;
+}
+
 function crearEncabezadoJuego(game) {
   const away = game.teams.away;
   const home = game.teams.home;
@@ -109,22 +132,25 @@ function crearEncabezadoJuego(game) {
     <div class="fila">
       <span class="equipo ${away.isWinner ? 'ganador' : ''}">
         <img class="logo" src="${logoEquipo(away.team.id)}" alt="" loading="lazy">
-        ${away.team.name}
+        <span class="equipo-nombre">${away.team.name}</span>
+        ${crearBadgeRecord(away.leagueRecord)}
       </span>
       <span class="marcador">${yaEmpezo ? away.score : ''}</span>
     </div>
     <div class="fila">
       <span class="equipo ${home.isWinner ? 'ganador' : ''}">
         <img class="logo" src="${logoEquipo(home.team.id)}" alt="" loading="lazy">
-        ${home.team.name}
+        <span class="equipo-nombre">${home.team.name}</span>
+        ${crearBadgeRecord(home.leagueRecord)}
       </span>
       <span class="marcador">${yaEmpezo ? home.score : ''}</span>
     </div>
     <div class="info">
-      <span>${game.venue?.name ?? ''}</span>
-      <span class="${estado.enVivo ? 'en-vivo' : ''}">${estado.texto}</span>
+      <span class="badge-estado badge-${estado.clase} ${estado.enVivo ? 'en-vivo' : ''}">${estado.texto}</span>
+      <span class="juego-venue">${game.venue?.name ?? ''}</span>
     </div>
     ${estado.enVivo ? crearEstadoEnVivo(game) : ''}
+    ${!yaEmpezo ? crearProbablesPreview(game) : ''}
   `;
 }
 

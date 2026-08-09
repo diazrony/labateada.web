@@ -135,7 +135,12 @@ async function cargarJuegos() {
 
     renderContenedor();
   } catch (err) {
-    contenedor.innerHTML = `<p class="estado">Error al cargar los resultados: ${err.message}</p>`;
+    contenedor.innerHTML = `
+      <p class="estado">
+        Error al cargar los resultados: ${err.message}
+        <br><button type="button" class="retry-btn" onclick="cargarJuegos()">Retry</button>
+      </p>
+    `;
   }
 }
 

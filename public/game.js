@@ -110,7 +110,12 @@ async function cargarJuego() {
     configurarNavegacion();
     renderDetalle();
   } catch (err) {
-    contenedor.innerHTML = `<p class="estado">Error loading game: ${err.message}</p>`;
+    contenedor.innerHTML = `
+      <p class="estado">
+        Error loading game: ${err.message}
+        <br><button type="button" class="retry-btn" onclick="cargarJuego()">Retry</button>
+      </p>
+    `;
   }
 }
 
