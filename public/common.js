@@ -54,6 +54,34 @@ const MAPA_PAISES = {
   Lithuania: 'lt',
 };
 
+function fechaHoy() {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, '0');
+  const d = String(hoy.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function sumarDias(fechaISO, dias) {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatoHora(isoString) {
+  return new Date(isoString).toLocaleTimeString('es', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatoFechaCorta(fechaISO) {
+  return new Date(`${fechaISO}T12:00:00`).toLocaleDateString('en', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 function logoEquipo(teamId) {
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`;
 }

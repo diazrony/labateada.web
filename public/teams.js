@@ -12,9 +12,12 @@ const DIVISIONES = {
 };
 
 const SECCIONES_EQUIPO = [
+  { id: 'ultimos', etiqueta: 'Last 10 Games' },
   { id: 'bateadores', etiqueta: 'Top Hitters vs Team' },
   { id: 'pitchers', etiqueta: 'Top K Pitchers vs Team' },
 ];
+
+const SECCION_EQUIPO_POR_DEFECTO = 'ultimos';
 
 let registros = new Map();
 const expandidos = new Set();
@@ -22,6 +25,7 @@ const seccionActiva = new Map();
 const cacheRosterActivo = new Map();
 const cacheTopBateadores = new Map();
 const cacheTopPitchers = new Map();
+const cacheUltimosPartidos = new Map();
 
 function trocear(arr, tam) {
   const resultado = [];
@@ -93,6 +97,71 @@ async function obtenerTopLigaVsEquipo(equipo, grupo) {
     .filter((c) => c.stat && Number(c.stat[statClave]) > 0)
     .sort((a, b) => Number(b.stat[statClave]) - Number(a.stat[statClave]))
     .slice(0, 8);
+}
+
+async function obtenerUltimosPartidos(teamId, temporada) {
+  if (cacheUltimosPartidos.has(teamId)) return cacheUltimosPartidos.get(teamId);
+
+  const url = `${API_BASE}/schedule?sportId=1&teamId=${teamId}&season=${temporada}&gameType=R&startDate=${temporada}-01-01&endDate=${fechaHoy()}&hydrate=linescore`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+
+  const partidos = (data.dates ?? [])
+    .flatMap((f) => f.games)
+    .filter((g) => g.status.abstractGameState === 'Final')
+    .sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate))
+    .slice(0, 10);
+
+  cacheUltimosPartidos.set(teamId, partidos);
+  return partidos;
+}
+
+function crearFilaPartido(equipo, game, listaGamePks) {
+  const esVisitante = game.teams.away.team.id === equipo.id;
+  const propio = esVisitante ? game.teams.away : game.teams.home;
+  const rival = esVisitante ? game.teams.home : game.teams.away;
+  const gano = propio.isWinner;
+
+  const url = `/game.html?gamePk=${game.gamePk}&list=${listaGamePks}&team=${equipo.id}`;
+
+  return `
+    <a class="partido-mini" href="${url}">
+      <span class="partido-fecha">${formatoFechaCorta(game.officialDate)}</span>
+      <span class="partido-rival">
+        <span class="partido-arroba">${esVisitante ? '@' : 'vs'}</span>
+        <img class="logo logo-sm" src="${logoEquipo(rival.team.id)}" alt="" loading="lazy">
+        ${rival.team.name}
+      </span>
+      <span class="partido-decision ${gano ? 'partido-gano' : 'partido-perdio'}">${gano ? 'W' : 'L'}</span>
+      <span class="partido-marcador">${propio.score}-${rival.score}</span>
+    </a>
+  `;
+}
+
+function renderUltimosPartidos(equipo) {
+  if (!cacheUltimosPartidos.has(equipo.id)) {
+    obtenerUltimosPartidos(equipo.id, TEMPORADA)
+      .then(() => {
+        if (expandidos.has(equipo.id)) renderLigas();
+      })
+      .catch(() => {});
+    return '<p class="vacio">Loading last games...</p>';
+  }
+
+  const partidos = cacheUltimosPartidos.get(equipo.id);
+  if (partidos.length === 0) {
+    return '<p class="vacio">No completed games yet.</p>';
+  }
+
+  const listaGamePks = partidos.map((g) => g.gamePk).join(',');
+
+  return `
+    <h4 class="subtitulo">Last ${partidos.length} Games</h4>
+    <div class="partidos-lista">
+      ${partidos.map((g) => crearFilaPartido(equipo, g, listaGamePks)).join('')}
+    </div>
+  `;
 }
 
 function crearFilaTopBateador(j) {
@@ -185,8 +254,10 @@ function renderSeccionEquipo(equipo, seccion) {
   switch (seccion) {
     case 'pitchers':
       return renderTopSeccion(equipo, 'pitching');
-    default:
+    case 'bateadores':
       return renderTopSeccion(equipo, 'hitting');
+    default:
+      return renderUltimosPartidos(equipo);
   }
 }
 
@@ -212,6 +283,7 @@ function crearEquipoCard(equipo) {
   const abierto = expandidos.has(equipo.id);
   const div = document.createElement('div');
   div.className = `equipo-card ${abierto ? 'abierto' : ''}`;
+  div.dataset.teamId = equipo.id;
 
   div.innerHTML = `
     <div class="equipo-card-encabezado">
@@ -224,9 +296,9 @@ function crearEquipoCard(equipo) {
         ? `
       <div class="detalle">
         ${renderInfoSeccion(equipo)}
-        ${crearPestanasSeccionEquipo(equipo.id, seccionActiva.get(equipo.id) ?? 'bateadores')}
+        ${crearPestanasSeccionEquipo(equipo.id, seccionActiva.get(equipo.id) ?? SECCION_EQUIPO_POR_DEFECTO)}
         <div class="seccion-contenido">
-          ${renderSeccionEquipo(equipo, seccionActiva.get(equipo.id) ?? 'bateadores')}
+          ${renderSeccionEquipo(equipo, seccionActiva.get(equipo.id) ?? SECCION_EQUIPO_POR_DEFECTO)}
         </div>
       </div>
     `
@@ -331,9 +403,31 @@ async function cargarEquipos() {
 
     registros = nuevosRegistros;
     renderLigas();
+    desplazarAEquipoDesdeURL();
   } catch (err) {
     contenedor.innerHTML = `<p class="estado">Error loading teams: ${err.message}</p>`;
   }
 }
 
+// Soporta volver desde game.html (?team=ID&section=ultimos) reabriendo la
+// misma tarjeta de equipo en la misma sección y llevando la vista hasta ella.
+function aplicarParametrosURL() {
+  const params = new URLSearchParams(window.location.search);
+  const teamId = Number(params.get('team'));
+  if (!Number.isFinite(teamId)) return;
+
+  expandidos.add(teamId);
+  const seccion = params.get('section');
+  if (seccion) seccionActiva.set(teamId, seccion);
+}
+
+function desplazarAEquipoDesdeURL() {
+  const params = new URLSearchParams(window.location.search);
+  const teamId = params.get('team');
+  if (!teamId) return;
+
+  document.querySelector(`[data-team-id="${teamId}"]`)?.scrollIntoView({ block: 'start' });
+}
+
+aplicarParametrosURL();
 cargarEquipos();

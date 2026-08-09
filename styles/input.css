@@ -483,6 +483,86 @@
     @apply mt-12 pb-2 text-center text-sm text-muted;
   }
 
+  /* Game detail page (game.html) */
+
+  .game-nav {
+    @apply mb-5 flex flex-wrap items-center justify-between gap-2.5;
+  }
+
+  .game-nav-back {
+    @apply rounded-full border border-line bg-surface px-4 py-1.5 text-sm font-semibold text-ink-700 no-underline shadow-card transition hover:border-aqua-400 hover:text-aqua-600;
+  }
+
+  .game-nav-arrows {
+    @apply flex gap-2;
+  }
+
+  .game-nav-arrow {
+    @apply min-h-9 cursor-pointer whitespace-nowrap rounded-full border border-line bg-surface px-3.5 font-sans text-sm text-ink-700 shadow-card transition hover:border-aqua-400 hover:text-aqua-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-700;
+  }
+
+  .juego-detalle {
+    @apply mx-auto max-w-2xl cursor-default;
+  }
+
+  .fecha-partido {
+    @apply m-0 mb-3 border-b border-line pb-3 text-center text-base font-semibold text-ink-900 sm:text-lg;
+  }
+
+  .juego-detalle:hover {
+    @apply translate-y-0 border-line shadow-card;
+  }
+
+  .juego-detalle .encabezado {
+    @apply cursor-default;
+  }
+
+  .juego-detalle .equipo {
+    @apply text-lg;
+  }
+
+  .juego-detalle .marcador {
+    @apply text-2xl;
+  }
+
+  /* Last 10 games (Teams page) */
+
+  .partidos-lista {
+    @apply flex flex-col;
+  }
+
+  .partido-mini {
+    @apply flex items-center gap-2.5 border-b border-line py-2 text-sm text-ink-900 no-underline transition-colors last:border-b-0 last:pb-0 hover:bg-ink-50;
+  }
+
+  .partido-fecha {
+    @apply w-11 shrink-0 text-xs capitalize text-muted;
+  }
+
+  .partido-rival {
+    @apply flex min-w-0 flex-1 items-center gap-1.5 truncate;
+  }
+
+  .partido-arroba {
+    @apply text-xs text-muted;
+  }
+
+  .partido-decision {
+    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold;
+  }
+
+  .partido-gano {
+    @apply bg-aqua-100 text-aqua-700;
+  }
+
+  .partido-perdio {
+    @apply bg-live-100 text-live-600;
+  }
+
+  .partido-marcador {
+    @apply w-12 shrink-0 text-right font-semibold tabular-nums text-ink-900;
+  }
+
   /* Field diamond (Teams tab) */
 
   .campo-tabs {

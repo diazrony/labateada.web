@@ -15,7 +15,8 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  const urlPath = req.url === '/' ? '/index.html' : req.url;
+  const pathname = req.url.split('?')[0];
+  const urlPath = pathname === '/' ? '/index.html' : pathname;
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath).replace(/^(\.\.[/\\])+/, ''));
 
   if (!filePath.startsWith(PUBLIC_DIR)) {

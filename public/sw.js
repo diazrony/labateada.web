@@ -1,13 +1,16 @@
-const CACHE_NAME = 'la-bateada-v2';
+const CACHE_NAME = 'la-bateada-v3';
 
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/teams.html',
+  '/game.html',
   '/style.css',
   '/common.js',
+  '/game-detail.js',
   '/app.js',
   '/teams.js',
+  '/game.js',
   '/manifest.json',
   '/LaBateada.png',
   '/icons/icon-192.png',
