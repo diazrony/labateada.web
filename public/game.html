@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d2740" />
+  <title>La Bateada · Game</title>
+  <link rel="icon" type="image/png" href="/LaBateada.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="La Bateada" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-brand">
+      <img class="logo-mark" src="/LaBateada.png" alt="La Bateada" />
+      <div class="header-text">
+        <h1>La Bateada</h1>
+        <p class="subtitulo-pagina">Game Detail</p>
+      </div>
+    </div>
+  </header>
+
+  <nav class="page-nav" aria-label="Page navigation">
+    <a class="page-nav-link" href="/index.html">Scores</a>
+    <a class="page-nav-link" href="/teams.html">Teams</a>
+  </nav>
+
+  <nav class="game-nav" aria-label="Game navigation">
+    <a id="volver" class="game-nav-back" href="/teams.html">‹ Back</a>
+    <div class="game-nav-arrows">
+      <button type="button" id="juego-anterior" class="game-nav-arrow" aria-label="Newer game" disabled>‹ Newer</button>
+      <button type="button" id="juego-siguiente" class="game-nav-arrow" aria-label="Older game" disabled>Older ›</button>
+    </div>
+  </nav>
+
+  <main id="detalle-juego">
+    <p class="estado">Loading game...</p>
+  </main>
+
+  <footer>
+    <p>Datos: MLB Stats API</p>
+  </footer>
+
+  <script src="/common.js"></script>
+  <script src="/game-detail.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>
