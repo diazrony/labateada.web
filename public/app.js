@@ -69,9 +69,8 @@ function formatoHora(isoString) {
 
 function formatoFechaCorta(fechaISO) {
   return new Date(`${fechaISO}T12:00:00`).toLocaleDateString('en', {
-    day: '2-digit',
+    day: 'numeric',
     month: 'short',
-    year: 'numeric',
   });
 }
 
@@ -347,7 +346,7 @@ function crearFilaGameLogAbridor(split) {
     <tr>
       <td>${formatoFechaCorta(split.date)}</td>
       <td class="nombre-jugador">${split.opponent?.id ? `<img class="logo logo-sm" src="${logoEquipo(split.opponent.id)}" alt="${split.opponent.name}" title="${split.opponent.name}" loading="lazy">` : ''}</td>
-      <td><span class="rol-badge ${esAbridor ? 'rol-abridor' : 'rol-relevo'}">${esAbridor ? 'Starter' : 'Bullpen'}</span></td>
+      <td><span class="rol-badge ${esAbridor ? 'rol-abridor' : 'rol-relevo'}">${esAbridor ? 'SP' : 'RP'}</span></td>
       <td>${s.inningsPitched}</td>
       <td>${s.hits}</td>
       <td>${s.runs}</td>
@@ -379,7 +378,7 @@ function crearTarjetaAbridor(datos) {
     const s = split.stat;
     const esAbridor = Number(s.gamesStarted) === 1;
     const decision = s.wins === 1 ? 'W' : s.losses === 1 ? 'L' : s.saves === 1 ? 'SV' : '';
-    return [split.date, split.opponent?.name ?? '', esAbridor ? 'Starter' : 'Bullpen', s.inningsPitched, s.hits, s.runs, s.earnedRuns, s.baseOnBalls, s.strikeOuts, decision];
+    return [split.date, split.opponent?.name ?? '', esAbridor ? 'SP' : 'RP', s.inningsPitched, s.hits, s.runs, s.earnedRuns, s.baseOnBalls, s.strikeOuts, decision];
   });
 
   const filas = juegosOrdenados.length
@@ -1052,9 +1051,9 @@ async function cargarJuegos() {
   actualizarControlesFecha();
 
   document.getElementById('fecha').textContent = new Date(`${fecha}T12:00:00`).toLocaleDateString('es', {
-    weekday: 'long',
+    weekday: 'short',
     year: 'numeric',
-    month: 'long',
+    month: 'short',
     day: 'numeric',
   });
 

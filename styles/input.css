@@ -353,8 +353,13 @@
     @apply text-xs;
   }
 
+  table.tabla-abridor th,
+  table.tabla-abridor td {
+    @apply px-1 py-0.5;
+  }
+
   .rol-badge {
-    @apply inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[0.65rem] font-bold;
+    @apply inline-block whitespace-nowrap rounded-full px-1.5 py-0.5 text-[0.65rem] font-bold;
   }
 
   .rol-abridor {
