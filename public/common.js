@@ -88,6 +88,24 @@ function formatoFechaCorta(fechaISO) {
   });
 }
 
+// Adjunta a `url` la pantalla+tarjeta de origen (`retorno`, ej. "/teams.html?team=5&section=ultimos")
+// como parámetro `from`, para que el link "Back" de la página destino pueda
+// restaurar exactamente esa posición en vez de asumir un origen fijo.
+function construirUrlConRetorno(url, retorno) {
+  if (!retorno) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}from=${encodeURIComponent(retorno)}`;
+}
+
+// Lee el parámetro `from` de la URL actual, si lo hay. Se valida que sea una
+// ruta relativa (arranca con "/" pero no "//") para evitar que termine
+// apuntando a un dominio externo.
+function retornoDesdeURL() {
+  const from = new URLSearchParams(window.location.search).get('from');
+  if (!from || !from.startsWith('/') || from.startsWith('//')) return null;
+  return from;
+}
+
 function logoEquipo(teamId) {
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`;
 }

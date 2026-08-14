@@ -4,6 +4,9 @@
 // (game.html / game.js). Cada página debe definir `actualizarDetalleJuego(gamePk)`
 // antes de cargar este script: es el hook que dispara el re-render de esa
 // página cuando termina de llegar una respuesta async (fetch de stats, etc).
+// También debe definir `urlRetorno(gamePk)`, que devuelve la URL (path+query)
+// que restaura la posición actual de esa página, para que los links a otro
+// partido (ej. desde Last 10 Games) puedan traer de vuelta al origen exacto.
 
 const cacheEnfrentamientos = new Map();
 const cachePersonas = new Map();
@@ -14,6 +17,7 @@ const cacheBateadoresHistorial = new Map();
 const cacheUltimosPartidosEquipo = new Map();
 const equipoActivo = new Map();
 const abridorEquipoActivo = new Map();
+const ultimosEquipoActivo = new Map();
 const seccionActiva = new Map();
 
 // Estado en vivo (boxscore completo + scoring plays) por gamePk, respaldado
@@ -396,13 +400,19 @@ function crearPestanasEquipo(game, lado) {
   return `<div class="campo-tabs">${pestana(away, 'away')}${pestana(home, 'home')}</div>`;
 }
 
-function crearFilaGameLogAbridor(split) {
+function crearFilaGameLogAbridor(split, retorno) {
   const s = split.stat;
   const esAbridor = Number(s.gamesStarted) === 1;
   const decision = s.wins === 1 ? 'W' : s.losses === 1 ? 'L' : s.saves === 1 ? 'SV' : '—';
+  // split.team es el equipo con el que jugó ESE partido puntual (puede
+  // diferir del equipo actual del jugador si fue cambiado de equipo).
+  const gamePk = split.game?.gamePk;
+  const url = gamePk
+    ? construirUrlConRetorno(`/game.html?gamePk=${gamePk}${split.team?.id ? `&team=${split.team.id}` : ''}`, retorno)
+    : null;
 
   return `
-    <tr>
+    <tr${url ? ` class="fila-clicable" onclick="window.location.href='${url}'"` : ''}>
       <td>${formatoFechaCorta(split.date)}</td>
       <td class="nombre-jugador">${split.opponent?.id ? `<img class="logo logo-sm" src="${logoEquipo(split.opponent.id)}" alt="${split.opponent.name}" title="${split.opponent.name}" loading="lazy">` : ''}</td>
       <td><span class="rol-badge ${esAbridor ? 'rol-abridor' : 'rol-relevo'}">${esAbridor ? 'SP' : 'RP'}</span></td>
@@ -417,7 +427,7 @@ function crearFilaGameLogAbridor(split) {
   `;
 }
 
-function crearTarjetaAbridor(datos) {
+function crearTarjetaAbridor(datos, retorno) {
   if (datos === undefined) {
     return `<div class="abridor-card"><p class="vacio">Loading...</p></div>`;
   }
@@ -441,7 +451,7 @@ function crearTarjetaAbridor(datos) {
   });
 
   const filas = juegosOrdenados.length
-    ? juegosOrdenados.map(crearFilaGameLogAbridor).join('')
+    ? juegosOrdenados.map((split) => crearFilaGameLogAbridor(split, retorno)).join('')
     : `<tr><td colspan="10" class="vacio">No recent games.</td></tr>`;
 
   return `
@@ -465,7 +475,7 @@ function crearTarjetaAbridor(datos) {
   `;
 }
 
-function crearTarjetaEnfrentamientosAbridor(personId, opponentTeamId, nombreRival, datos) {
+function crearTarjetaEnfrentamientosAbridor(personId, opponentTeamId, nombreRival, datos, retorno) {
   if (datos.length === 0) {
     return `<div class="abridor-card"><p class="vacio">No previous starts vs ${nombreRival}.</p></div>`;
   }
@@ -486,7 +496,7 @@ function crearTarjetaEnfrentamientosAbridor(personId, opponentTeamId, nombreRiva
           <thead>
             <tr>${crearEncabezadoOrdenable(tablaId, columnas)}</tr>
           </thead>
-          <tbody>${juegosOrdenados.map(crearFilaGameLogAbridor).join('')}</tbody>
+          <tbody>${juegosOrdenados.map((split) => crearFilaGameLogAbridor(split, retorno)).join('')}</tbody>
         </table>
       </div>
     </div>
@@ -504,7 +514,8 @@ function renderEnfrentamientosAbridor(game, probable, rival) {
     return `${encabezado}<div class="abridor-card"><p class="vacio">Loading...</p></div>`;
   }
 
-  return `${encabezado}${crearTarjetaEnfrentamientosAbridor(probable.id, rival.id, rival.name, cacheEnfrentamientosAbridor.get(clave))}`;
+  const retorno = urlRetorno(game.gamePk);
+  return `${encabezado}${crearTarjetaEnfrentamientosAbridor(probable.id, rival.id, rival.name, cacheEnfrentamientosAbridor.get(clave), retorno)}`;
 }
 
 function cambiarAbridorEquipo(event, gamePk, lado) {
@@ -556,17 +567,18 @@ function renderAbridoresSlot(game) {
   const probable = infoEquipo.probablePitcher;
 
   const registro = renderRegistroEquipo(game, infoEquipo.team.id);
+  const retorno = urlRetorno(game.gamePk);
 
   let tarjeta;
   if (!probable) {
-    tarjeta = crearTarjetaAbridor(null);
+    tarjeta = crearTarjetaAbridor(null, retorno);
   } else if (!cachePitcherStats.has(probable.id)) {
     obtenerDatosAbridor(probable.id, game.season)
       .then(() => actualizarDetalleJuego(game.gamePk))
       .catch(() => {});
-    tarjeta = crearTarjetaAbridor(undefined);
+    tarjeta = crearTarjetaAbridor(undefined, retorno);
   } else {
-    tarjeta = crearTarjetaAbridor(cachePitcherStats.get(probable.id));
+    tarjeta = crearTarjetaAbridor(cachePitcherStats.get(probable.id), retorno);
   }
 
   const historial = probable ? renderEnfrentamientosAbridor(game, probable, infoRival.team) : '';
@@ -1055,14 +1067,15 @@ async function obtenerUltimosPartidosEquipo(teamId, temporada, fechaLimite) {
   return partidos;
 }
 
-function crearFilaUltimoPartido(equipoId, g) {
+function crearFilaUltimoPartido(equipoId, g, retorno) {
   const esVisitante = g.teams.away.team.id === equipoId;
   const propio = esVisitante ? g.teams.away : g.teams.home;
   const rival = esVisitante ? g.teams.home : g.teams.away;
   const gano = propio.isWinner;
+  const url = construirUrlConRetorno(`/game.html?gamePk=${g.gamePk}&team=${equipoId}`, retorno);
 
   return `
-    <a class="partido-mini" href="/game.html?gamePk=${g.gamePk}&team=${equipoId}">
+    <a class="partido-mini" href="${url}">
       <span class="partido-fecha">${formatoFechaCorta(g.officialDate)}</span>
       <span class="partido-rival">
         <span class="partido-arroba">${esVisitante ? '@' : 'vs'}</span>
@@ -1091,18 +1104,38 @@ function renderUltimosPartidosEquipo(game, equipo) {
     return '<p class="vacio">No completed games yet.</p>';
   }
 
-  return `<div class="partidos-lista">${partidos.map((g) => crearFilaUltimoPartido(equipo.id, g)).join('')}</div>`;
+  const retorno = urlRetorno(game.gamePk);
+  return `<div class="partidos-lista">${partidos.map((g) => crearFilaUltimoPartido(equipo.id, g, retorno)).join('')}</div>`;
 }
 
-function renderUltimosPartidosSeccion(game) {
+function cambiarUltimosEquipo(event, gamePk, lado) {
+  event.stopPropagation();
+  ultimosEquipoActivo.set(gamePk, lado);
+  actualizarDetalleJuego(gamePk);
+}
+
+function crearPestanasUltimos(game, lado) {
   const away = game.teams.away.team;
   const home = game.teams.home.team;
 
+  const pestana = (equipo, valor) => `
+    <button type="button" class="campo-tab ${lado === valor ? 'activo' : ''}" title="${equipo.name}" onclick="cambiarUltimosEquipo(event, ${game.gamePk}, '${valor}')">
+      <img class="campo-tab-logo campo-tab-logo-solo" src="${logoEquipo(equipo.id)}" alt="${equipo.name}" loading="lazy">
+    </button>
+  `;
+
+  return `<div class="campo-tabs">${pestana(away, 'away')}${pestana(home, 'home')}</div>`;
+}
+
+function renderUltimosPartidosSeccion(game) {
+  const lado = ultimosEquipoActivo.get(game.gamePk) ?? 'away';
+  const tabs = crearPestanasUltimos(game, lado);
+  const equipo = lado === 'away' ? game.teams.away.team : game.teams.home.team;
+
   return `
-    <h4 class="subtitulo">Last 10 Games — ${away.name}</h4>
-    ${renderUltimosPartidosEquipo(game, away)}
-    <h4 class="subtitulo">Last 10 Games — ${home.name}</h4>
-    ${renderUltimosPartidosEquipo(game, home)}
+    ${tabs}
+    <h4 class="subtitulo">Last 10 Games — ${equipo.name}</h4>
+    ${renderUltimosPartidosEquipo(game, equipo)}
   `;
 }
 

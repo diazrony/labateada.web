@@ -10,11 +10,20 @@ function actualizarDetalleJuego(gamePk) {
   if (expandidos.has(gamePk)) renderContenedor();
 }
 
+// Hook que consume game-detail.js al construir links a otro partido (ej.
+// desde Last 10 Games o Starting Pitchers): vuelve a esta tarjeta expandida,
+// en la misma sección que estaba activa, en la fecha actual.
+function urlRetorno(gamePk) {
+  const seccion = seccionActiva.get(gamePk) ?? 'resumen';
+  return `/index.html?game=${gamePk}&fecha=${fechaSeleccionada}&section=${seccion}`;
+}
+
 function crearTarjetaJuego(game) {
   const abierto = expandidos.has(game.gamePk);
 
   const div = document.createElement('div');
   div.className = `juego ${abierto ? 'abierto' : ''}`;
+  div.dataset.gameId = game.gamePk;
 
   div.innerHTML = `
     <div class="encabezado">
@@ -90,8 +99,14 @@ function renderContenedor() {
   // scroll a ese alto menor; se restaura para que no "salte" al tope.
   // El segundo restore en rAF cubre a los navegadores (sobre todo móviles)
   // que reajustan el scroll por el cambio de foco recién en el próximo frame.
-  window.scrollTo(scrollX, scrollY);
-  requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+  // Se salta este restore mientras hay un scroll pendiente hacia una tarjeta
+  // pedida por URL (ver desplazarAJuegoDesdeURL): si no, el rAF de acá
+  // pisaría ese scrollIntoView un frame después, devolviendo la página al
+  // tope antes de que el usuario llegue a verlo.
+  if (!scrollAJuegoPendiente) {
+    window.scrollTo(scrollX, scrollY);
+    requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+  }
 }
 
 function actualizarControlesFecha() {
@@ -109,6 +124,35 @@ function irAFecha(fecha) {
   detenerTodoElPollingEnVivo();
   expandidos.clear();
   cargarJuegos();
+}
+
+// Soporta volver desde game.html (?game=ID&fecha=YYYY-MM-DD&section=ultimos)
+// reabriendo la misma tarjeta de partido en la misma sección y fecha.
+function aplicarParametrosURL() {
+  const params = new URLSearchParams(window.location.search);
+  const fecha = params.get('fecha');
+  if (fecha) fechaSeleccionada = fecha;
+
+  const gamePk = Number(params.get('game'));
+  if (!Number.isFinite(gamePk)) return;
+
+  expandidos.add(gamePk);
+  const seccion = params.get('section');
+  if (seccion) seccionActiva.set(gamePk, seccion);
+}
+
+// Sólo se ejecuta una vez: cargarJuegos() se repite cada 15s por el polling
+// (ver setInterval más abajo) y no debe reubicar el scroll en cada refresco.
+let scrollAJuegoPendiente = true;
+
+function desplazarAJuegoDesdeURL() {
+  if (!scrollAJuegoPendiente) return;
+  scrollAJuegoPendiente = false;
+
+  const gamePk = new URLSearchParams(window.location.search).get('game');
+  if (!gamePk) return;
+
+  document.querySelector(`[data-game-id="${gamePk}"]`)?.scrollIntoView({ block: 'start' });
 }
 
 async function cargarJuegos() {
@@ -136,6 +180,7 @@ async function cargarJuegos() {
     ultimosJuegos = (data.dates?.[0]?.games ?? []).sort(ordenarJuegos);
 
     renderContenedor();
+    desplazarAJuegoDesdeURL();
   } catch (err) {
     contenedor.innerHTML = `
       <p class="estado">
@@ -158,5 +203,6 @@ document.getElementById('date-picker').addEventListener('change', (e) => {
   irAFecha(e.target.value);
 });
 
+aplicarParametrosURL();
 cargarJuegos();
 setInterval(cargarJuegos, 15000);

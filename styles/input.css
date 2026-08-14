@@ -549,6 +549,10 @@
     @apply bg-surface-secondary;
   }
 
+  table.tabla-stats tbody tr.fila-clicable {
+    @apply cursor-pointer;
+  }
+
   .foto-jugador {
     @apply block h-[26px] w-[26px] rounded-full bg-line object-cover;
   }

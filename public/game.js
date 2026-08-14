@@ -14,13 +14,21 @@ function urlJuego(pk) {
   q.set('gamePk', pk);
   if (listaGamePks.length) q.set('list', listaGamePks.join(','));
   if (teamId) q.set('team', teamId);
-  return `/game.html?${q.toString()}`;
+  // Preserva el origen ("from") actual para que Newer/Older no rompan la
+  // cadena de vuelta hacia la pantalla y tarjeta desde la que se llegó aquí.
+  return construirUrlConRetorno(`/game.html?${q.toString()}`, retornoDesdeURL());
+}
+
+// Hook que consume game-detail.js al construir links a otro partido (ej.
+// desde Last 10 Games): la posición a la que "Back" debe volver es esta
+// misma página, tal cual está en la URL ahora mismo.
+function urlRetorno() {
+  return window.location.pathname + window.location.search;
 }
 
 function configurarNavegacion() {
-  document.getElementById('volver').href = teamId
-    ? `/teams.html?team=${teamId}&section=ultimos`
-    : '/teams.html';
+  document.getElementById('volver').href =
+    retornoDesdeURL() ?? (teamId ? `/teams.html?team=${teamId}&section=ultimos` : '/teams.html');
 
   const indice = listaGamePks.indexOf(gamePk);
   const btnAnterior = document.getElementById('juego-anterior');
