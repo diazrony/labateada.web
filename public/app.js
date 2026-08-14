@@ -12,10 +12,17 @@ function actualizarDetalleJuego(gamePk) {
 
 // Hook que consume game-detail.js al construir links a otro partido (ej.
 // desde Last 10 Games o Starting Pitchers): vuelve a esta tarjeta expandida,
-// en la misma sección que estaba activa, en la fecha actual.
+// en la misma sección y sub-pestaña de equipo que estaba activa, en la
+// fecha actual y con el scroll de la página tal cual estaba.
 function urlRetorno(gamePk) {
   const seccion = seccionActiva.get(gamePk) ?? 'resumen';
-  return `/index.html?game=${gamePk}&fecha=${fechaSeleccionada}&section=${seccion}`;
+  const params = new URLSearchParams({ game: gamePk, fecha: fechaSeleccionada, section: seccion });
+
+  const lado = ladoActivoParaSeccion(gamePk, seccion);
+  if (lado) params.set('lado', lado);
+  params.set('scroll', Math.round(window.scrollY));
+
+  return `/index.html?${params.toString()}`;
 }
 
 function crearTarjetaJuego(game) {
@@ -103,7 +110,9 @@ function renderContenedor() {
   // pedida por URL (ver desplazarAJuegoDesdeURL): si no, el rAF de acá
   // pisaría ese scrollIntoView un frame después, devolviendo la página al
   // tope antes de que el usuario llegue a verlo.
-  if (!scrollAJuegoPendiente) {
+  if (Number.isFinite(scrollGuardadoPendiente)) {
+    aplicarScrollGuardado();
+  } else if (!scrollAJuegoPendiente) {
     window.scrollTo(scrollX, scrollY);
     requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
   }
@@ -126,8 +135,9 @@ function irAFecha(fecha) {
   cargarJuegos();
 }
 
-// Soporta volver desde game.html (?game=ID&fecha=YYYY-MM-DD&section=ultimos)
-// reabriendo la misma tarjeta de partido en la misma sección y fecha.
+// Soporta volver desde game.html (?game=ID&fecha=YYYY-MM-DD&section=ultimos
+// &lado=home&scroll=1234) reabriendo la misma tarjeta de partido en la misma
+// sección, sub-pestaña de equipo y fecha.
 function aplicarParametrosURL() {
   const params = new URLSearchParams(window.location.search);
   const fecha = params.get('fecha');
@@ -139,11 +149,22 @@ function aplicarParametrosURL() {
   expandidos.add(gamePk);
   const seccion = params.get('section');
   if (seccion) seccionActiva.set(gamePk, seccion);
+
+  const lado = params.get('lado');
+  if (lado && seccion) aplicarLadoParaSeccion(gamePk, seccion, lado);
+
+  const scroll = params.get('scroll');
+  if (scroll !== null) {
+    scrollGuardadoPendiente = Number(scroll);
+    scrollGuardadoVence = Date.now() + 5000;
+  }
 }
 
 // Sólo se ejecuta una vez: cargarJuegos() se repite cada 15s por el polling
 // (ver setInterval más abajo) y no debe reubicar el scroll en cada refresco.
 let scrollAJuegoPendiente = true;
+let scrollGuardadoPendiente = null;
+let scrollGuardadoVence = 0;
 
 function desplazarAJuegoDesdeURL() {
   if (!scrollAJuegoPendiente) return;
@@ -152,7 +173,34 @@ function desplazarAJuegoDesdeURL() {
   const gamePk = new URLSearchParams(window.location.search).get('game');
   if (!gamePk) return;
 
+  // Si venimos de un link "de vuelta" con scroll guardado, se restaura la
+  // posición exacta; si no, alcanza con llevar la tarjeta al inicio.
+  if (Number.isFinite(scrollGuardadoPendiente)) {
+    aplicarScrollGuardado();
+    return;
+  }
+
   document.querySelector(`[data-game-id="${gamePk}"]`)?.scrollIntoView({ block: 'start' });
+}
+
+// La sección activa puede seguir creciendo mientras terminan de llegar sus
+// datos async (ver actualizarDetalleJuego) después de este primer scroll, así
+// que el alto máximo de scroll en este momento puede ser menor al que había
+// cuando se guardó esta posición. Se reintenta en cada render (ver
+// renderContenedor) hasta que ese alto alcance para llegar exactamente ahí, o
+// hasta que venza la ventana de reintento — para no seguir empujando el
+// scroll del usuario una vez que ya se fue a otra parte de la página.
+function aplicarScrollGuardado() {
+  if (!Number.isFinite(scrollGuardadoPendiente)) return;
+
+  if (Date.now() > scrollGuardadoVence) {
+    scrollGuardadoPendiente = null;
+    return;
+  }
+
+  window.scrollTo(0, scrollGuardadoPendiente);
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  if (maxScroll >= scrollGuardadoPendiente) scrollGuardadoPendiente = null;
 }
 
 async function cargarJuegos() {

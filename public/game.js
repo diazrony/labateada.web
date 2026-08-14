@@ -21,10 +21,38 @@ function urlJuego(pk) {
 
 // Hook que consume game-detail.js al construir links a otro partido (ej.
 // desde Last 10 Games): la posición a la que "Back" debe volver es esta
-// misma página, tal cual está en la URL ahora mismo.
+// misma página. Se reconstruye a partir del estado actual en vez de leer
+// window.location.search tal cual, porque cambiar de sección o de
+// sub-pestaña de equipo acá no actualiza la URL de la barra de direcciones.
 function urlRetorno() {
-  return window.location.pathname + window.location.search;
+  const seccion = seccionActiva.get(gamePk) ?? 'resumen';
+  const q = new URLSearchParams({ gamePk });
+  if (teamId) q.set('team', teamId);
+  if (listaGamePks.length) q.set('list', listaGamePks.join(','));
+  q.set('section', seccion);
+
+  const lado = ladoActivoParaSeccion(gamePk, seccion);
+  if (lado) q.set('lado', lado);
+  q.set('scroll', Math.round(window.scrollY));
+
+  return construirUrlConRetorno(`/game.html?${q.toString()}`, retornoDesdeURL());
 }
+
+// Soporta llegar a esta página como destino de un link "de vuelta" (ver
+// urlRetorno más arriba): reabre la misma sección, sub-pestaña de equipo y
+// scroll con que se dejó esa vista.
+function aplicarParametrosURL() {
+  const seccion = params.get('section');
+  if (seccion) seccionActiva.set(gamePk, seccion);
+
+  const lado = params.get('lado');
+  if (lado && seccion) aplicarLadoParaSeccion(gamePk, seccion, lado);
+
+  const scroll = params.get('scroll');
+  if (scroll !== null) scrollGuardadoPendiente = Number(scroll);
+}
+
+let scrollGuardadoPendiente = null;
 
 function configurarNavegacion() {
   document.getElementById('volver').href =
@@ -115,8 +143,14 @@ async function cargarJuego() {
     const fechaCapitalizada = fechaLarga.charAt(0).toUpperCase() + fechaLarga.slice(1);
     fechaPartidoTexto = `${fechaCapitalizada} · ${formatoHora(juego.gameDate)}`;
 
+    aplicarParametrosURL();
     configurarNavegacion();
     renderDetalle();
+
+    if (Number.isFinite(scrollGuardadoPendiente)) {
+      window.scrollTo(0, scrollGuardadoPendiente);
+      scrollGuardadoPendiente = null;
+    }
   } catch (err) {
     contenedor.innerHTML = `
       <p class="estado">

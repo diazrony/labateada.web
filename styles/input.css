@@ -729,7 +729,7 @@
   }
 
   .campo-diamante {
-    @apply relative mx-auto w-full max-w-[360px];
+    @apply relative mx-auto w-full max-w-[420px];
     aspect-ratio: 100 / 136;
   }
 
@@ -738,24 +738,24 @@
   }
 
   .marcador-campo {
-    @apply pointer-events-none absolute z-10 flex w-[4.6rem] flex-col items-center text-center;
+    @apply pointer-events-none absolute z-10 flex w-[4.2rem] flex-col items-center text-center;
     transform: translate(-50%, -50%);
   }
 
   .marcador-pos {
-    @apply mb-[3px] rounded bg-ink-900 px-[0.3rem] py-[0.1rem] text-[0.55rem] font-bold leading-none text-white;
+    @apply mb-[3px] rounded bg-ink-900 px-[0.3rem] py-[0.1rem] text-[0.55rem] font-bold leading-none text-white shadow-sm;
   }
 
   .marcador-foto {
-    @apply h-[26px] w-[26px] rounded-full border-[1.5px] border-white bg-line object-cover;
+    @apply h-[30px] w-[30px] rounded-full border-2 border-white bg-line object-cover shadow-sm;
   }
 
   .marcador-nombre {
-    @apply mt-[2px] max-w-full whitespace-normal rounded bg-surface px-[0.25rem] py-[0.05rem] text-[0.6rem] font-semibold leading-tight text-ink-900;
+    @apply mt-[3px] max-w-full whitespace-normal rounded bg-surface px-[0.3rem] py-[0.05rem] text-[0.6rem] font-semibold leading-tight text-ink-900 shadow-sm;
   }
 
   .marcador-pais {
-    @apply mt-[2px] flex max-w-full items-center justify-center gap-[0.2rem] rounded bg-surface px-[0.25rem] py-[0.05rem] text-[0.5rem] leading-tight text-muted;
+    @apply mt-[2px] flex max-w-full items-center justify-center gap-[0.2rem] rounded bg-surface px-[0.3rem] py-[0.05rem] text-[0.5rem] leading-tight text-muted shadow-sm;
   }
 
   .marcador-bandera {
