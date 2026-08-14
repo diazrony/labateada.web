@@ -6,17 +6,22 @@
 // página cuando termina de llegar una respuesta async (fetch de stats, etc).
 
 const cacheEnfrentamientos = new Map();
-const cacheBoxscoreDetalle = new Map();
 const cachePersonas = new Map();
 const cachePitcherStats = new Map();
 const cacheEnfrentamientosAbridor = new Map();
 const cacheStandings = new Map();
-const cacheJugadasAnotadoras = new Map();
 const cacheBateadoresHistorial = new Map();
 const cacheUltimosPartidosEquipo = new Map();
 const equipoActivo = new Map();
 const abridorEquipoActivo = new Map();
 const seccionActiva = new Map();
+
+// Estado en vivo (boxscore completo + scoring plays) por gamePk, respaldado
+// por el feed GUMBO (v1.1/game/{pk}/feed/live). A diferencia de los demás
+// caches de este archivo, esta entrada se sigue actualizando in-place
+// mientras el partido está en vivo (ver iniciarPollingEnVivo), en vez de
+// quedar fija con el primer fetch.
+const feedEnVivo = new Map();
 
 const MANO_LANZADOR = { L: 'LHP', R: 'RHP' };
 
@@ -628,14 +633,14 @@ function crearFilaBateadorHistorial(b, idsAlineacion) {
 }
 
 function idsAlineacionInicial(game, lado) {
-  if (!cacheBoxscoreDetalle.has(game.gamePk)) {
-    obtenerBoxscoreDetalle(game)
+  if (!feedEnVivo.has(game.gamePk)) {
+    obtenerFeedEnVivo(game)
       .then(() => actualizarDetalleJuego(game.gamePk))
       .catch(() => {});
     return null;
   }
 
-  const boxscore = cacheBoxscoreDetalle.get(game.gamePk);
+  const boxscore = feedEnVivo.get(game.gamePk).data.liveData.boxscore;
   const { fielders, dh } = alineacionInicial(boxscore.teams[lado]);
   return new Set((dh ? [...fielders, dh] : fielders).map((j) => j.person.id));
 }
@@ -693,31 +698,116 @@ function crearEstadisticasEquipo(boxscore, lado, gamePk) {
   `;
 }
 
-async function obtenerBoxscoreDetalle(game) {
-  if (cacheBoxscoreDetalle.has(game.gamePk)) {
-    return cacheBoxscoreDetalle.get(game.gamePk);
+// Trae el feed GUMBO completo una única vez por gamePk (cacheado en
+// feedEnVivo) y, si el partido está en vivo, arranca el polling incremental
+// vía diffPatch para que boxscore/plays se mantengan al día mientras la
+// tarjeta siga abierta — sin necesidad de repetir este fetch completo.
+async function obtenerFeedEnVivo(game) {
+  const gamePk = game.gamePk;
+  if (feedEnVivo.has(gamePk)) {
+    return feedEnVivo.get(gamePk).data;
   }
 
-  const resp = await fetch(`${API_BASE}/game/${game.gamePk}/boxscore`);
+  const resp = await fetch(`${API_BASE_LIVE}/game/${gamePk}/feed/live`);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const data = await resp.json();
 
-  cacheBoxscoreDetalle.set(game.gamePk, data);
+  feedEnVivo.set(gamePk, {
+    data,
+    timeStamp: data.metaData?.timeStamp ?? null,
+    wait: data.metaData?.wait ?? 10,
+    timer: null,
+    pollActivo: false,
+  });
+
+  if (data.gameData?.status?.abstractGameState === 'Live') {
+    iniciarPollingEnVivo(gamePk);
+  }
+
   return data;
+}
+
+// Pide sólo lo que cambió desde el último timecode conocido. La API responde
+// con un array de operaciones JSON Patch (RFC 6902) cuando puede calcular el
+// diff, o con el documento completo (marcado con metaData.logicalEvents:
+// ["fullUpdate"]) cuando el timecode ya expiró — ambos casos se manejan acá.
+async function actualizarFeedEnVivo(gamePk) {
+  const entrada = feedEnVivo.get(gamePk);
+  if (!entrada) return;
+
+  try {
+    const resp = await fetch(
+      `${API_BASE_LIVE}/game/${gamePk}/feed/live/diffPatch?startTimecode=${entrada.timeStamp}`
+    );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const payload = await resp.json();
+
+    if (Array.isArray(payload)) {
+      if (payload.length > 0) aplicarParcheJSON(entrada.data, payload);
+    } else {
+      entrada.data = payload;
+    }
+
+    entrada.timeStamp = entrada.data.metaData?.timeStamp ?? entrada.timeStamp;
+    entrada.wait = entrada.data.metaData?.wait ?? entrada.wait;
+    actualizarDetalleJuego(gamePk);
+  } catch (err) {
+    // Fetch fallido o transitorio: se reintenta en el próximo ciclo del
+    // polling conservando el último estado conocido.
+  }
+}
+
+function programarSiguientePoll(gamePk) {
+  const entrada = feedEnVivo.get(gamePk);
+  if (!entrada) return;
+
+  const esperaMs = Math.max(entrada.wait ?? 10, 5) * 1000;
+  entrada.timer = setTimeout(async () => {
+    await actualizarFeedEnVivo(gamePk);
+    const sigueEnVivo = entrada.data?.gameData?.status?.abstractGameState === 'Live';
+    if (entrada.pollActivo && sigueEnVivo) {
+      programarSiguientePoll(gamePk);
+    } else {
+      entrada.timer = null;
+    }
+  }, esperaMs);
+}
+
+function iniciarPollingEnVivo(gamePk) {
+  const entrada = feedEnVivo.get(gamePk);
+  if (!entrada || entrada.timer) return;
+  entrada.pollActivo = true;
+  programarSiguientePoll(gamePk);
+}
+
+function detenerPollingEnVivo(gamePk) {
+  const entrada = feedEnVivo.get(gamePk);
+  if (!entrada) return;
+  entrada.pollActivo = false;
+  if (entrada.timer) {
+    clearTimeout(entrada.timer);
+    entrada.timer = null;
+  }
+}
+
+// Corta todo el polling activo, ej. al cambiar de fecha en index.html: las
+// tarjetas expandidas de la fecha anterior ya no están a la vista.
+function detenerTodoElPollingEnVivo() {
+  feedEnVivo.forEach((_entrada, gamePk) => detenerPollingEnVivo(gamePk));
 }
 
 function renderEquipoSlot(game) {
   const lado = equipoActivo.get(game.gamePk) ?? 'away';
   const tabs = crearPestanasEquipo(game, lado);
 
-  if (!cacheBoxscoreDetalle.has(game.gamePk)) {
-    obtenerBoxscoreDetalle(game)
+  if (!feedEnVivo.has(game.gamePk)) {
+    obtenerFeedEnVivo(game)
       .then(() => actualizarDetalleJuego(game.gamePk))
       .catch(() => {});
     return `${tabs}<p class="vacio">Loading...</p>`;
   }
 
-  const boxscore = cacheBoxscoreDetalle.get(game.gamePk);
+  const boxscore = feedEnVivo.get(game.gamePk).data.liveData.boxscore;
   const { fielders, dh } = alineacionInicial(boxscore.teams[lado]);
 
   const lineupListo = fielders.length >= 9;
@@ -924,32 +1014,19 @@ function crearJugadaAnotadora(play, game) {
   `;
 }
 
-async function obtenerJugadasAnotadoras(game) {
-  if (cacheJugadasAnotadoras.has(game.gamePk)) {
-    return cacheJugadasAnotadoras.get(game.gamePk);
-  }
-
-  const resp = await fetch(`${API_BASE}/game/${game.gamePk}/playByPlay`);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
-
-  const jugadas = (data.allPlays ?? []).filter((p) => p.about?.isScoringPlay);
-  cacheJugadasAnotadoras.set(game.gamePk, jugadas);
-  return jugadas;
-}
-
 function renderJugadasAnotadorasSeccion(game) {
   const yaEmpezo = game.status.abstractGameState !== 'Preview';
   if (!yaEmpezo) return '';
 
-  if (!cacheJugadasAnotadoras.has(game.gamePk)) {
-    obtenerJugadasAnotadoras(game)
+  if (!feedEnVivo.has(game.gamePk)) {
+    obtenerFeedEnVivo(game)
       .then(() => actualizarDetalleJuego(game.gamePk))
       .catch(() => {});
     return `<h4 class="subtitulo">Scoring Plays</h4><p class="vacio">Loading...</p>`;
   }
 
-  const jugadas = cacheJugadasAnotadoras.get(game.gamePk);
+  const allPlays = feedEnVivo.get(game.gamePk).data.liveData.plays.allPlays ?? [];
+  const jugadas = allPlays.filter((p) => p.about?.isScoringPlay);
   const contenido = jugadas.length
     ? jugadas.map((p) => crearJugadaAnotadora(p, game)).join('')
     : '<p class="vacio">No runs scored yet.</p>';

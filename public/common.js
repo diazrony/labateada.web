@@ -1,4 +1,10 @@
 const API_BASE = 'https://statsapi.mlb.com/api/v1';
+// v1.1/game/{gamePk}/feed/live (GUMBO) es el feed que la propia MLB usa para
+// actualizaciones en vivo: cada respuesta trae metaData.timeStamp (timecode)
+// y metaData.wait (segundos sugeridos hasta la próxima consulta). Pasando ese
+// timecode a .../feed/live/diffPatch se obtiene sólo lo que cambió (parche
+// JSON Patch, RFC 6902) en lugar de descargar el documento completo de nuevo.
+const API_BASE_LIVE = 'https://statsapi.mlb.com/api/v1.1';
 
 const MAPA_PAISES = {
   USA: 'us',
@@ -198,6 +204,66 @@ function ordinal(n) {
   if (resto10 === 2) return `${n}nd`;
   if (resto10 === 3) return `${n}rd`;
   return `${n}th`;
+}
+
+// Aplicador mínimo de JSON Patch (RFC 6902), tal como lo devuelve
+// .../feed/live/diffPatch cuando hay un timecode previo válido. Muta `raiz`
+// in-place para que las referencias ya guardadas (ej. en feedEnVivo) vean el
+// documento actualizado sin tener que reasignarlas en cada sitio que las usa.
+function partesRuta(ruta) {
+  return ruta
+    .split('/')
+    .slice(1)
+    .map((p) => p.replace(/~1/g, '/').replace(/~0/g, '~'));
+}
+
+function obtenerValorRuta(raiz, ruta) {
+  if (ruta === '') return raiz;
+  return partesRuta(ruta).reduce((valor, parte) => valor?.[Array.isArray(valor) ? Number(parte) : parte], raiz);
+}
+
+function aplicarOperacionParche(raiz, op) {
+  if (op.path === '') {
+    if (op.op === 'replace' || op.op === 'add') {
+      Object.keys(raiz).forEach((k) => delete raiz[k]);
+      Object.assign(raiz, op.value);
+    }
+    return;
+  }
+
+  const partes = partesRuta(op.path);
+  const ultima = partes[partes.length - 1];
+  const contenedor = partes.slice(0, -1).reduce((v, p) => v[Array.isArray(v) ? Number(p) : p], raiz);
+  const clave = Array.isArray(contenedor) ? (ultima === '-' ? contenedor.length : Number(ultima)) : ultima;
+
+  switch (op.op) {
+    case 'add':
+      if (Array.isArray(contenedor)) contenedor.splice(clave, 0, op.value);
+      else contenedor[clave] = op.value;
+      break;
+    case 'replace':
+      contenedor[clave] = op.value;
+      break;
+    case 'remove':
+      if (Array.isArray(contenedor)) contenedor.splice(clave, 1);
+      else delete contenedor[clave];
+      break;
+    case 'move': {
+      const valor = obtenerValorRuta(raiz, op.from);
+      aplicarOperacionParche(raiz, { op: 'remove', path: op.from });
+      aplicarOperacionParche(raiz, { op: 'add', path: op.path, value: valor });
+      break;
+    }
+    case 'copy':
+      aplicarOperacionParche(raiz, { op: 'add', path: op.path, value: obtenerValorRuta(raiz, op.from) });
+      break;
+    default:
+      break; // 'test' u operaciones desconocidas: no aplican cambios de estado.
+  }
+}
+
+function aplicarParcheJSON(raiz, operaciones) {
+  operaciones.forEach((op) => aplicarOperacionParche(raiz, op));
 }
 
 if ('serviceWorker' in navigator) {

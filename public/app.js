@@ -37,6 +37,7 @@ function crearTarjetaJuego(game) {
   div.querySelector('.encabezado').addEventListener('click', () => {
     if (expandidos.has(game.gamePk)) {
       expandidos.delete(game.gamePk);
+      detenerPollingEnVivo(game.gamePk);
     } else {
       expandidos.add(game.gamePk);
     }
@@ -105,6 +106,7 @@ function actualizarControlesFecha() {
 
 function irAFecha(fecha) {
   fechaSeleccionada = fecha;
+  detenerTodoElPollingEnVivo();
   expandidos.clear();
   cargarJuegos();
 }
