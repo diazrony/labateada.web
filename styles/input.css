@@ -835,4 +835,104 @@
   .equipo-jugador {
     @apply mt-0.5 flex items-center gap-1 text-xs font-normal text-muted;
   }
+
+  /* Player search page ----------------------------------------------------- */
+
+  .buscador-jugador {
+    @apply relative;
+  }
+
+  .buscador-input {
+    @apply min-h-11 w-full rounded-md border border-line bg-surface px-3.5 font-sans text-base text-ink-900 placeholder:text-muted-2;
+  }
+
+  .buscador-sugerencias {
+    @apply absolute inset-x-0 top-full z-30 mt-1 max-h-96 overflow-y-auto rounded-md border border-line bg-surface shadow-sticky;
+  }
+
+  .sugerencia-item {
+    @apply flex w-full cursor-pointer items-center gap-2.5 border-0 border-b border-b-line bg-transparent px-3 py-2 text-left font-sans text-sm text-ink-900 transition-colors last:border-b-0 hover:bg-surface-secondary;
+  }
+
+  .sugerencia-item.activo {
+    @apply bg-accent-100;
+  }
+
+  .sugerencia-foto {
+    @apply h-9 w-9 shrink-0 rounded-full bg-line object-cover;
+  }
+
+  .sugerencia-info {
+    @apply min-w-0 flex-1;
+  }
+
+  .sugerencia-nombre {
+    @apply block truncate font-semibold;
+  }
+
+  .sugerencia-meta {
+    @apply flex items-center gap-1 truncate text-xs text-muted;
+  }
+
+  /* Player profile ----------------------------------------------------------- */
+
+  .perfil-encabezado {
+    @apply flex flex-wrap items-center gap-4 rounded-lg border border-line bg-surface p-4;
+  }
+
+  .perfil-foto {
+    @apply h-24 w-24 shrink-0 rounded-full border-2 border-line bg-line object-cover sm:h-28 sm:w-28;
+  }
+
+  .perfil-info {
+    @apply min-w-0 flex-1;
+  }
+
+  .perfil-nombre {
+    @apply m-0 flex flex-wrap items-baseline gap-2 text-xl font-bold text-ink-900 sm:text-2xl;
+  }
+
+  .perfil-numero {
+    @apply text-base font-normal text-muted;
+  }
+
+  .perfil-meta {
+    @apply mt-2 flex flex-wrap items-center gap-1.5;
+  }
+
+  .perfil-equipo {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-900;
+  }
+
+  .perfil-bandera {
+    @apply h-2.5 w-3.5 shrink-0 rounded-[1px] object-cover;
+  }
+
+  .stat-grid {
+    @apply grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6;
+  }
+
+  .stat-tile {
+    @apply rounded-md border border-line bg-surface px-2 py-2.5 text-center;
+  }
+
+  .stat-valor {
+    @apply block text-lg font-bold tabular-nums text-ink-900 sm:text-xl;
+  }
+
+  .stat-etiqueta {
+    @apply mt-0.5 block text-[0.65rem] font-semibold uppercase tracking-wide text-muted;
+  }
+
+  .splits-grid {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2;
+  }
+
+  .split-card {
+    @apply rounded-md border border-line bg-surface p-3;
+  }
+
+  .split-titulo {
+    @apply m-0 mb-2 text-sm font-bold text-ink-900;
+  }
 }

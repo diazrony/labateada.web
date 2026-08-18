@@ -419,12 +419,13 @@ function aplicarLadoParaSeccion(gamePk, seccion, lado) {
   else if (seccion === 'equipos') equipoActivo.set(gamePk, lado);
 }
 
-// Los links hacia otro partido (game logs, últimos partidos) no llevan la
-// URL de retorno ya armada en el href: la recalculan acá, en el momento del
-// click, llamando a urlRetorno(gamePkOrigen). Así el scroll y la sub-pestaña
-// de equipo que se guardan reflejan el estado real al momento de irse, no el
-// que había cuando se renderizó la sección (que puede quedar desactualizado
-// si el usuario sigue scrolleando o cambiando de pestaña antes de clickear).
+// Los links hacia otra página (otro partido vía game logs/últimos partidos,
+// o el perfil de un jugador vía Top Hitters) no llevan la URL de retorno ya
+// armada en el href: la recalculan acá, en el momento del click, llamando a
+// urlRetorno(gamePkOrigen). Así el scroll y la sub-pestaña de equipo que se
+// guardan reflejan el estado real al momento de irse, no el que había cuando
+// se renderizó la sección (que puede quedar desactualizado si el usuario
+// sigue scrolleando o cambiando de pestaña antes de clickear).
 function irADetalleJuego(event, urlBase, gamePkOrigen) {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   event.preventDefault();
@@ -651,11 +652,12 @@ function crearFilaPitcheo(jugador) {
   `;
 }
 
-function crearFilaBateadorHistorial(b, idsAlineacion) {
+function crearFilaBateadorHistorial(b, idsAlineacion, gamePkOrigen) {
   const s = b.stat;
   const enAlineacion = idsAlineacion?.has(b.id) ?? false;
+  const urlBase = `/player.html?id=${b.id}`;
   return `
-    <tr>
+    <tr class="fila-clicable" onclick="irADetalleJuego(event, '${urlBase}', ${gamePkOrigen})">
       <td>
         <span class="foto-wrap">
           <img class="foto-jugador" src="${fotoJugador(b.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
@@ -699,7 +701,7 @@ function renderListaBateadores(game, rosterTeamId, opponentTeamId, idsAlineacion
     `hist-${clave}`,
     cacheBateadoresHistorial.get(clave),
     ['G', 'AB', 'H', 'HR', 'AVG', 'OPS'],
-    (b) => crearFilaBateadorHistorial(b, idsAlineacion),
+    (b) => crearFilaBateadorHistorial(b, idsAlineacion, game.gamePk),
     (b) => {
       const s = b.stat;
       return [s.gamesPlayed, s.atBats, s.hits, s.homeRuns, s.avg, s.ops];

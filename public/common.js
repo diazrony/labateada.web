@@ -114,6 +114,10 @@ function fotoJugador(personId) {
   return `https://img.mlbstatic.com/mlb-photos/image/upload/w_60,q_100/v1/people/${personId}/headshot/67/current`;
 }
 
+function fotoJugadorGrande(personId) {
+  return `https://img.mlbstatic.com/mlb-photos/image/upload/w_180,q_100/v1/people/${personId}/headshot/67/current`;
+}
+
 function banderaUrl(pais) {
   const codigo = MAPA_PAISES[pais];
   return codigo ? `https://flagcdn.com/w40/${codigo}.png` : null;

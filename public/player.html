@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#fdfbfa" />
-  <title>La Bateada · MLB Hoy</title>
+  <title>La Bateada · Players</title>
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -24,7 +24,7 @@
         <img class="logo-mark" src="/LaBateada.png" alt="La Bateada" />
       </div>
       <nav class="sidebar-nav" aria-label="Primary navigation">
-        <a class="sidebar-link activo" href="/index.html" aria-current="page">
+        <a class="sidebar-link" href="/index.html">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="10" width="4" height="10" rx="1"></rect>
             <rect x="10" y="6" width="4" height="14" rx="1"></rect>
@@ -38,7 +38,7 @@
           </svg>
           <span>Teams</span>
         </a>
-        <a class="sidebar-link" href="/player.html">
+        <a class="sidebar-link activo" href="/player.html" aria-current="page">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="8" r="4"></circle>
             <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"></path>
@@ -57,41 +57,23 @@
               <img class="logo-mark-sm" src="/icons/icon-192.png" alt="La Bateada" />
             </a>
             <div class="topbar-context">
-              <h1 class="topbar-title">Scores</h1>
-              <p id="fecha" class="topbar-date"></p>
+              <h1 class="topbar-title">Players</h1>
+              <p class="subtitulo-pagina">Search any active MLB player</p>
             </div>
           </header>
 
-          <nav class="date-nav" aria-label="Date navigation">
-            <div class="date-nav-row">
-              <button type="button" id="prev-day" class="date-nav-arrow" aria-label="Previous day">‹</button>
-              <div class="date-nav-tabs" role="tablist">
-                <button type="button" class="date-tab" data-offset="-1">Yesterday</button>
-                <button type="button" class="date-tab" data-offset="0">Today</button>
-                <button type="button" class="date-tab" data-offset="1">Tomorrow</button>
-              </div>
-              <button type="button" id="next-day" class="date-nav-arrow" aria-label="Next day">›</button>
-            </div>
-            <input type="date" id="date-picker" class="date-picker" aria-label="Pick a date">
+          <nav class="game-nav" id="jugador-nav" aria-label="Player navigation" hidden>
+            <a id="volver" class="game-nav-back" href="#">‹ Back</a>
           </nav>
+
+          <div class="buscador-jugador">
+            <input type="text" id="jugador-input" class="buscador-input" placeholder="Search player by name…" autocomplete="off" />
+            <div id="jugador-sugerencias" class="buscador-sugerencias" hidden></div>
+          </div>
         </div>
 
-        <main id="juegos">
-          <div class="juego skeleton-card" aria-hidden="true">
-            <div class="fila"><span class="skeleton" style="width:55%;height:0.9rem"></span><span class="skeleton" style="width:1.25rem;height:0.9rem"></span></div>
-            <div class="fila"><span class="skeleton" style="width:45%;height:0.9rem"></span><span class="skeleton" style="width:1.25rem;height:0.9rem"></span></div>
-            <span class="skeleton" style="width:35%;height:0.6rem;margin-top:0.6rem"></span>
-          </div>
-          <div class="juego skeleton-card" aria-hidden="true">
-            <div class="fila"><span class="skeleton" style="width:60%;height:0.9rem"></span><span class="skeleton" style="width:1.25rem;height:0.9rem"></span></div>
-            <div class="fila"><span class="skeleton" style="width:50%;height:0.9rem"></span><span class="skeleton" style="width:1.25rem;height:0.9rem"></span></div>
-            <span class="skeleton" style="width:30%;height:0.6rem;margin-top:0.6rem"></span>
-          </div>
-          <div class="juego skeleton-card" aria-hidden="true">
-            <div class="fila"><span class="skeleton" style="width:50%;height:0.9rem"></span><span class="skeleton" style="width:1.25rem;height:0.9rem"></span></div>
-            <div class="fila"><span class="skeleton" style="width:65%;height:0.9rem"></span><span class="skeleton" style="width:1.25rem;height:0.9rem"></span></div>
-            <span class="skeleton" style="width:40%;height:0.6rem;margin-top:0.6rem"></span>
-          </div>
+        <main id="perfil-jugador">
+          <p class="estado">Search for a player above to see their profile.</p>
         </main>
 
         <footer>
@@ -102,7 +84,7 @@
   </div>
 
   <nav class="bottom-nav" aria-label="Primary navigation">
-    <a class="bottom-nav-link activo" href="/index.html" aria-current="page">
+    <a class="bottom-nav-link" href="/index.html">
       <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="10" width="4" height="10" rx="1"></rect>
         <rect x="10" y="6" width="4" height="14" rx="1"></rect>
@@ -116,7 +98,7 @@
       </svg>
       <span>Teams</span>
     </a>
-    <a class="bottom-nav-link" href="/player.html">
+    <a class="bottom-nav-link activo" href="/player.html" aria-current="page">
       <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="8" r="4"></circle>
         <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"></path>
@@ -126,7 +108,6 @@
   </nav>
 
   <script src="/common.js"></script>
-  <script src="/game-detail.js"></script>
-  <script src="/app.js"></script>
+  <script src="/player.js"></script>
 </body>
 </html>
