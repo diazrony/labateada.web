@@ -742,6 +742,10 @@
     transform: translate(-50%, -50%);
   }
 
+  .marcador-clicable {
+    @apply pointer-events-auto cursor-pointer;
+  }
+
   .marcador-pos {
     @apply mb-[3px] rounded bg-ink-900 px-[0.3rem] py-[0.1rem] text-[0.55rem] font-bold leading-none text-white shadow-sm;
   }
@@ -764,6 +768,10 @@
 
   .campo-dh {
     @apply mt-2.5 flex items-center gap-2 border-t border-line pt-2 text-sm;
+  }
+
+  .campo-dh-clicable {
+    @apply cursor-pointer;
   }
 
   .campo-dh-etiqueta {
@@ -934,5 +942,41 @@
 
   .split-titulo {
     @apply m-0 mb-2 text-sm font-bold text-ink-900;
+  }
+
+  .torneos-lista {
+    @apply flex flex-col gap-3;
+  }
+
+  .torneo-card {
+    @apply rounded-md border border-line bg-surface p-3;
+  }
+
+  .torneo-cabecera {
+    @apply mb-2.5 flex w-full cursor-pointer items-center gap-2.5 border-0 bg-transparent p-0 text-left;
+  }
+
+  .torneo-info {
+    @apply flex flex-1 flex-col;
+  }
+
+  .torneo-titulo {
+    @apply text-sm font-bold text-ink-900;
+  }
+
+  .torneo-subtitulo {
+    @apply text-xs text-muted;
+  }
+
+  .torneo-flecha {
+    @apply h-4 w-4 shrink-0 text-muted transition-transform duration-150;
+  }
+
+  .torneo-flecha-abierta {
+    @apply rotate-180;
+  }
+
+  .torneo-card .stat-grid {
+    @apply mb-2.5;
   }
 }

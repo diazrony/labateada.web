@@ -322,16 +322,17 @@ function alineacionInicial(equipoBox) {
   return { fielders, dh };
 }
 
-function crearMarcadorCampo(jugador) {
+function crearMarcadorCampo(jugador, gamePkOrigen) {
   const coord = POSICIONES_CAMPO[jugador.position.abbreviation];
   if (!coord) return '';
 
   const nombre = nombreConApellido(jugador.person);
   const pais = cachePersonas.get(jugador.person.id)?.pais ?? null;
   const bandera = banderaUrl(pais);
+  const urlBase = `/player.html?id=${jugador.person.id}`;
 
   return `
-    <div class="marcador-campo" style="left:${coord.x}%; top:${coord.y}%" title="${jugador.person.fullName} — ${pais ?? 'Nationality unknown'}">
+    <div class="marcador-campo marcador-clicable" style="left:${coord.x}%; top:${coord.y}%" title="${jugador.person.fullName} — ${pais ?? 'Nationality unknown'}" onclick="irADetalleJuego(event, '${urlBase}', ${gamePkOrigen})">
       <span class="marcador-pos">${jugador.position.abbreviation}</span>
       <img class="marcador-foto" src="${fotoJugador(jugador.person.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
       <span class="marcador-nombre">${nombre}</span>
@@ -343,8 +344,8 @@ function crearMarcadorCampo(jugador) {
   `;
 }
 
-function crearCampoDiamante(fielders) {
-  const marcadores = fielders.map(crearMarcadorCampo).join('');
+function crearCampoDiamante(fielders, gamePkOrigen) {
+  const marcadores = fielders.map((jugador) => crearMarcadorCampo(jugador, gamePkOrigen)).join('');
 
   return `
     <div class="campo-diamante">
@@ -364,13 +365,14 @@ function crearCampoDiamante(fielders) {
   `;
 }
 
-function crearNotaDH(dh) {
+function crearNotaDH(dh, gamePkOrigen) {
   const nombre = nombreConApellido(dh.person);
   const pais = cachePersonas.get(dh.person.id)?.pais ?? null;
   const bandera = banderaUrl(pais);
+  const urlBase = `/player.html?id=${dh.person.id}`;
 
   return `
-    <div class="campo-dh">
+    <div class="campo-dh campo-dh-clicable" onclick="irADetalleJuego(event, '${urlBase}', ${gamePkOrigen})">
       <span class="campo-dh-etiqueta">DH</span>
       <img class="foto-jugador" src="${fotoJugador(dh.person.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
       <span class="campo-dh-nombre">${nombre}</span>
@@ -616,11 +618,12 @@ function renderAbridoresSlot(game) {
   return `${tabs}${registro}${tarjeta}${historial}`;
 }
 
-function crearFilaBateo(jugador) {
+function crearFilaBateo(jugador, gamePkOrigen) {
   const b = jugador.stats.batting;
   const avg = jugador.seasonStats?.batting?.avg ?? '';
+  const urlBase = `/player.html?id=${jugador.person.id}`;
   return `
-    <tr>
+    <tr class="fila-clicable" onclick="irADetalleJuego(event, '${urlBase}', ${gamePkOrigen})">
       <td><img class="foto-jugador" src="${fotoJugador(jugador.person.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
       <td class="nombre-jugador">${nombreConApellido(jugador.person)}<span class="pos-jugador">${jugador.position.abbreviation}</span></td>
       <td>${b.atBats}</td>
@@ -634,11 +637,12 @@ function crearFilaBateo(jugador) {
   `;
 }
 
-function crearFilaPitcheo(jugador) {
+function crearFilaPitcheo(jugador, gamePkOrigen) {
   const p = jugador.stats.pitching;
   const era = jugador.seasonStats?.pitching?.era ?? '';
+  const urlBase = `/player.html?id=${jugador.person.id}`;
   return `
-    <tr>
+    <tr class="fila-clicable" onclick="irADetalleJuego(event, '${urlBase}', ${gamePkOrigen})">
       <td><img class="foto-jugador" src="${fotoJugador(jugador.person.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
       <td class="nombre-jugador">${nombreConApellido(jugador.person)}</td>
       <td>${p.inningsPitched}</td>
@@ -727,13 +731,13 @@ function crearEstadisticasEquipo(boxscore, lado, gamePk) {
 
   return `
     <h4 class="subtitulo">Hitting</h4>
-    ${crearTablaJugadores(`bateo-${gamePk}-${lado}`, bateadores, columnasBateo, crearFilaBateo, (jugador) => {
+    ${crearTablaJugadores(`bateo-${gamePk}-${lado}`, bateadores, columnasBateo, (jugador) => crearFilaBateo(jugador, gamePk), (jugador) => {
       const b = jugador.stats.batting;
       const avg = jugador.seasonStats?.batting?.avg ?? '';
       return [b.atBats, b.runs, b.hits, b.rbi, b.baseOnBalls, b.strikeOuts, avg];
     })}
     <h4 class="subtitulo">Pitching</h4>
-    ${crearTablaJugadores(`pitcheo-${gamePk}-${lado}`, lanzadores, columnasPitcheo, crearFilaPitcheo, (jugador) => {
+    ${crearTablaJugadores(`pitcheo-${gamePk}-${lado}`, lanzadores, columnasPitcheo, (jugador) => crearFilaPitcheo(jugador, gamePk), (jugador) => {
       const p = jugador.stats.pitching;
       const era = jugador.seasonStats?.pitching?.era ?? '';
       return [p.inningsPitched, p.hits, p.runs, p.earnedRuns, p.baseOnBalls, p.strikeOuts, era];
@@ -864,7 +868,7 @@ function renderEquipoSlot(game) {
   }
 
   const lineupHtml = lineupListo
-    ? `${crearCampoDiamante(fielders)}${dh ? crearNotaDH(dh) : ''}`
+    ? `${crearCampoDiamante(fielders, game.gamePk)}${dh ? crearNotaDH(dh, game.gamePk) : ''}`
     : '<p class="vacio">Lineup not confirmed yet.</p>';
 
   return `
