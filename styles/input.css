@@ -511,6 +511,30 @@
     background: color-mix(in srgb, var(--rol-relevo) 16%, transparent);
   }
 
+  .punto-disp {
+    @apply absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full shadow-[0_0_0_1.5px_var(--color-surface)];
+  }
+
+  .punto-disp-disponible {
+    background: var(--color-success);
+  }
+
+  .punto-disp-dudoso {
+    background: var(--color-warning);
+  }
+
+  .punto-disp-no-disponible {
+    background: var(--color-error);
+  }
+
+  .expand-caret {
+    @apply inline-block w-3 text-muted;
+  }
+
+  tr.bullpen-expandido-fila > td {
+    @apply bg-surface-secondary p-2;
+  }
+
   table.tabla-stats {
     @apply w-full border-collapse text-sm tabular-nums;
   }

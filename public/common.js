@@ -142,6 +142,8 @@ const TOOLTIPS_STATS = {
   Role: 'Starter or Bullpen role',
   Dec: 'Decision (Win, Loss or Save)',
   Date: 'Game Date',
+  'Last Out': 'Date of last appearance',
+  Rest: 'Days since last appearance',
 };
 
 // Estado de orden por tabla: la clave es un id estable por tabla (ej. gamePk +

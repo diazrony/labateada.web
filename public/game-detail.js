@@ -1,5 +1,5 @@
 // Lógica de renderizado de las secciones de detalle de un partido (Summary,
-// Starting Pitchers, Teams, Matchups, Top Hitters), compartida entre la
+// Starting Pitchers, Teams, Top Hitters), compartida entre la
 // tarjeta expandible de index.html (app.js) y la página de detalle standalone
 // (game.html / game.js). Cada página debe definir `actualizarDetalleJuego(gamePk)`
 // antes de cargar este script: es el hook que dispara el re-render de esa
@@ -8,10 +8,10 @@
 // que restaura la posición actual de esa página, para que los links a otro
 // partido (ej. desde Last 10 Games) puedan traer de vuelta al origen exacto.
 
-const cacheEnfrentamientos = new Map();
 const cachePersonas = new Map();
 const cachePitcherStats = new Map();
 const cacheEnfrentamientosAbridor = new Map();
+const cacheBullpen = new Map();
 const cacheStandings = new Map();
 const cacheBateadoresHistorial = new Map();
 const cacheUltimosPartidosEquipo = new Map();
@@ -278,6 +278,124 @@ async function obtenerEnfrentamientosAbridor(personId, opponentTeamId, temporada
 
   cacheEnfrentamientosAbridor.set(clave, ultimos);
   return ultimos;
+}
+
+// MLB expresa entradas lanzadas como N.0/N.1/N.2 (outs extra, no decimal
+// real): "1.2" es 1 entrada + 2 outs = 5/3, no 1.2. Se usa para detectar
+// salidas "pesadas" de un relevista al calcular su disponibilidad.
+function entradasLanzadas(ip) {
+  const n = Number(ip);
+  if (Number.isNaN(n)) return 0;
+  const enteros = Math.trunc(n);
+  const outsExtra = Math.round((n - enteros) * 10);
+  return enteros + outsExtra / 3;
+}
+
+function diasEntreFechas(fechaA, fechaB) {
+  const a = new Date(`${fechaA}T00:00:00Z`);
+  const b = new Date(`${fechaB}T00:00:00Z`);
+  return Math.round((a - b) / 86400000);
+}
+
+// Heurística de disponibilidad de un relevista para el partido del día
+// (fechaJuego), basada en su gameLog de temporada: si lanzó hoy mismo o tres
+// días seguidos antes del partido, se lo da por no disponible; si tuvo una
+// salida pesada (>=30 pitcheos o >=2 entradas) con un solo día de descanso,
+// queda como dudoso. No hay feed oficial de "bullpen disponible hoy", así
+// que esto es una aproximación con los datos públicos del gameLog.
+function calcularDisponibilidadBullpen(splits, fechaJuego) {
+  if (!splits || splits.length === 0) {
+    return { estado: 'disponible', detalle: 'No appearances this season', diasDescanso: null, ultimaFecha: null };
+  }
+
+  const ultimo = splits[0];
+  const diasDescanso = diasEntreFechas(fechaJuego, ultimo.date);
+  const ipUltimo = entradasLanzadas(ultimo.stat.inningsPitched);
+  const pitchesUltimo = ultimo.stat.numberOfPitches !== undefined ? Number(ultimo.stat.numberOfPitches) : null;
+  const salidaPesada = (pitchesUltimo !== null && pitchesUltimo >= 30) || ipUltimo >= 2;
+
+  const fechasRecientes = new Set(splits.slice(0, 4).map((s) => s.date));
+  const rachaTresDias = [1, 2, 3].every((n) => fechasRecientes.has(sumarDias(fechaJuego, -n)));
+
+  let estado;
+  let detalle;
+  if (diasDescanso <= 0) {
+    estado = 'no_disponible';
+    detalle = 'Pitched today';
+  } else if (rachaTresDias) {
+    estado = 'no_disponible';
+    detalle = '3 straight days pitched';
+  } else if (diasDescanso === 1 && salidaPesada) {
+    estado = 'dudoso';
+    detalle = `${ultimo.stat.inningsPitched} IP yesterday`;
+  } else {
+    estado = 'disponible';
+    detalle = diasDescanso === 1 ? 'Pitched yesterday, short outing' : `${diasDescanso}d rest`;
+  }
+
+  return { estado, detalle, diasDescanso, ultimaFecha: ultimo.date };
+}
+
+// Trae el bullpen (relevistas del roster activo) de un equipo. En lugar de
+// pedir season+gameLog en un solo hydrate por jugador (la API rechaza
+// combinar dos sub-hydrations de "stats" distintas en una sola llamada),
+// se hacen dos llamadas batch por equipo —una para season, otra para
+// gameLog— cubriendo todo el roster a la vez.
+async function obtenerBullpenEquipo(teamId, temporada) {
+  const clave = `${teamId}-${temporada}`;
+  if (cacheBullpen.has(clave)) {
+    return cacheBullpen.get(clave);
+  }
+
+  const respRoster = await fetch(`${API_BASE}/teams/${teamId}/roster?rosterType=active`);
+  if (!respRoster.ok) throw new Error(`HTTP ${respRoster.status}`);
+  const datosRoster = await respRoster.json();
+
+  const pitcherIds = (datosRoster.roster ?? [])
+    .filter((j) => j.position.type === 'Pitcher')
+    .map((j) => j.person.id);
+
+  if (pitcherIds.length === 0) {
+    cacheBullpen.set(clave, []);
+    return [];
+  }
+
+  const idsParam = pitcherIds.join(',');
+  const [respTemporada, respGameLog] = await Promise.all([
+    fetch(`${API_BASE}/people?personIds=${idsParam}&hydrate=stats(group=pitching,type=season,season=${temporada})`),
+    fetch(`${API_BASE}/people?personIds=${idsParam}&hydrate=stats(group=pitching,type=gameLog,season=${temporada})`),
+  ]);
+  if (!respTemporada.ok) throw new Error(`HTTP ${respTemporada.status}`);
+  if (!respGameLog.ok) throw new Error(`HTTP ${respGameLog.status}`);
+
+  const datosTemporada = await respTemporada.json();
+  const datosGameLog = await respGameLog.json();
+
+  const statsTemporadaPorId = new Map(
+    (datosTemporada.people ?? []).map((p) => [p.id, p.stats?.[0]?.splits?.[0]?.stat ?? null])
+  );
+  const gameLogPorId = new Map((datosGameLog.people ?? []).map((p) => [p.id, p.stats?.[0]?.splits ?? []]));
+
+  const resultado = (datosGameLog.people ?? [])
+    .map((persona) => {
+      const bloqueTemporada = statsTemporadaPorId.get(persona.id) ?? null;
+      const gamesStarted = Number(bloqueTemporada?.gamesStarted ?? 0);
+      const gamesPlayed = Number(bloqueTemporada?.gamesPlayed ?? 0);
+      const esAbridorFijo = gamesPlayed > 0 && gamesStarted / gamesPlayed >= 0.5;
+      if (esAbridorFijo) return null;
+
+      return {
+        id: persona.id,
+        nombre: nombreConApellido(persona),
+        mano: persona.pitchHand?.code ?? null,
+        temporada: bloqueTemporada,
+        ultimosJuegos: (gameLogPorId.get(persona.id) ?? []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)),
+      };
+    })
+    .filter(Boolean);
+
+  cacheBullpen.set(clave, resultado);
+  return resultado;
 }
 
 async function obtenerStandings(temporada) {
@@ -614,8 +732,130 @@ function renderAbridoresSlot(game) {
   }
 
   const historial = probable ? renderEnfrentamientosAbridor(game, probable, infoRival.team) : '';
+  const bullpen = renderBullpenSlot(game, infoEquipo, probable);
 
-  return `${tabs}${registro}${tarjeta}${historial}`;
+  return `${tabs}${registro}${tarjeta}${historial}${bullpen}`;
+}
+
+const DISPONIBILIDAD_LABEL = { disponible: 'Likely available', dudoso: 'Questionable', no_disponible: 'Unlikely' };
+
+// Por gamePk, ids de relevistas con su fila de últimos 7 juegos desplegada
+// (ver crearFilaBullpenPrincipal/toggleBullpenExpandido).
+const bullpenExpandido = new Map();
+
+function toggleBullpenExpandido(event, gamePk, pitcherId) {
+  event.stopPropagation();
+  const expandidosDelJuego = bullpenExpandido.get(gamePk) ?? new Set();
+  if (expandidosDelJuego.has(pitcherId)) expandidosDelJuego.delete(pitcherId);
+  else expandidosDelJuego.add(pitcherId);
+  bullpenExpandido.set(gamePk, expandidosDelJuego);
+  actualizarDetalleJuego(gamePk);
+}
+
+function crearFilaBullpenPrincipal(pitcher, gamePk, expandido) {
+  const t = pitcher.temporada;
+  const d = pitcher.disponibilidad;
+  const clase = d.estado.replace('_', '-');
+
+  return `
+    <tr class="fila-clicable" onclick="toggleBullpenExpandido(event, ${gamePk}, ${pitcher.id})">
+      <td>
+        <span class="foto-wrap">
+          <img class="foto-jugador" src="${fotoJugador(pitcher.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+          <span class="punto-disp punto-disp-${clase}" title="${DISPONIBILIDAD_LABEL[d.estado]} — ${d.detalle}"></span>
+        </span>
+      </td>
+      <td class="nombre-jugador"><span class="expand-caret">${expandido ? '▾' : '▸'}</span> ${pitcher.nombre}${pitcher.mano ? ` <span class="abridor-mano">(${MANO_LANZADOR[pitcher.mano] ?? pitcher.mano})</span>` : ''}</td>
+      <td>${t?.era ?? '—'}</td>
+      <td>${t?.whip ?? '—'}</td>
+      <td>${t?.strikeOuts ?? '—'}</td>
+      <td>${d.ultimaFecha ? formatoFechaCorta(d.ultimaFecha) : '—'}</td>
+      <td>${d.diasDescanso ?? '—'}</td>
+    </tr>
+  `;
+}
+
+function crearFilaBullpenExpandida(pitcher, gamePk) {
+  const juegos = pitcher.ultimosJuegos.slice(0, 7);
+  const filas = juegos.length
+    ? juegos.map((split) => crearFilaGameLogAbridor(split, gamePk)).join('')
+    : `<tr><td colspan="10" class="vacio">No recent games.</td></tr>`;
+
+  return `
+    <tr class="bullpen-expandido-fila">
+      <td colspan="7">
+        <div class="boxscore-wrap">
+          <table class="tabla-stats tabla-abridor">
+            <thead>
+              <tr><th>Date</th><th>Opp</th><th>Role</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th>Dec</th></tr>
+            </thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function crearTablaBullpen(gamePk, pitchers) {
+  if (pitchers.length === 0) {
+    return '<p class="vacio">No bullpen data available.</p>';
+  }
+
+  const tablaId = `bullpen-${gamePk}`;
+  const columnas = ['ERA', 'WHIP', 'K', 'Last Out', 'Rest'];
+  const ordenados = ordenarFilas(tablaId, pitchers, (p) => [
+    p.temporada?.era,
+    p.temporada?.whip,
+    p.temporada?.strikeOuts,
+    p.disponibilidad.ultimaFecha,
+    p.disponibilidad.diasDescanso,
+  ]);
+
+  const expandidosDelJuego = bullpenExpandido.get(gamePk);
+  const filas = ordenados
+    .map((p) => {
+      const expandido = expandidosDelJuego?.has(p.id) ?? false;
+      return crearFilaBullpenPrincipal(p, gamePk, expandido) + (expandido ? crearFilaBullpenExpandida(p, gamePk) : '');
+    })
+    .join('');
+
+  return `
+    <div class="boxscore-wrap">
+      <table class="tabla-stats tabla-abridor">
+        <thead>
+          <tr><th></th><th>Player</th>${crearEncabezadoOrdenable(tablaId, columnas)}</tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+const PRIORIDAD_DISPONIBILIDAD = { disponible: 0, dudoso: 1, no_disponible: 2 };
+
+function renderBullpenSlot(game, infoEquipo, probable) {
+  const encabezado = '<h4 class="subtitulo">Bullpen Availability</h4>';
+  const clave = `${infoEquipo.team.id}-${game.season}`;
+
+  if (!cacheBullpen.has(clave)) {
+    obtenerBullpenEquipo(infoEquipo.team.id, game.season)
+      .then(() => actualizarDetalleJuego(game.gamePk))
+      .catch(() => {});
+    return `${encabezado}<p class="vacio">Loading...</p>`;
+  }
+
+  const pitchers = cacheBullpen
+    .get(clave)
+    .filter((p) => p.id !== probable?.id)
+    .map((p) => ({ ...p, disponibilidad: calcularDisponibilidadBullpen(p.ultimosJuegos, game.officialDate) }))
+    .sort(
+      (a, b) =>
+        PRIORIDAD_DISPONIBILIDAD[a.disponibilidad.estado] - PRIORIDAD_DISPONIBILIDAD[b.disponibilidad.estado] ||
+        Number(a.temporada?.era ?? 99) - Number(b.temporada?.era ?? 99)
+    );
+
+  return `${encabezado}${crearTablaBullpen(game.gamePk, pitchers)}`;
 }
 
 function crearFilaBateo(jugador, gamePkOrigen) {
@@ -884,54 +1124,6 @@ function fechaAnterior(fechaOficial) {
   return sumarDias(fechaOficial, -1);
 }
 
-function claveEquipos(game) {
-  const homeId = game.teams.home.team.id;
-  const awayId = game.teams.away.team.id;
-  return [homeId, awayId].sort((a, b) => a - b).join('-');
-}
-
-async function buscarEnfrentamientosTemporada(homeId, awayId, anio, fechaLimite) {
-  const startDate = `${anio}-01-01`;
-  const endDate = fechaLimite ?? `${anio}-12-31`;
-  const url = `${API_BASE}/schedule?sportId=1&teamId=${homeId}&opponentId=${awayId}&gameType=R&startDate=${startDate}&endDate=${endDate}`;
-
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
-
-  return (data.dates ?? [])
-    .flatMap((f) => f.games)
-    .filter((g) => g.status.abstractGameState === 'Final');
-}
-
-async function obtenerEnfrentamientos(game) {
-  const clave = claveEquipos(game);
-
-  if (cacheEnfrentamientos.has(clave)) {
-    return cacheEnfrentamientos.get(clave);
-  }
-
-  const homeId = game.teams.home.team.id;
-  const awayId = game.teams.away.team.id;
-  const anioActual = parseInt(game.officialDate.slice(0, 4), 10);
-
-  // La API de MLB ignora años posteriores cuando opponentId + un rango
-  // de fechas cruza temporadas, así que se consulta año por año.
-  let encontrados = [];
-  for (let anio = anioActual; anio > anioActual - 5 && encontrados.length < 3; anio--) {
-    const fechaLimite = anio === anioActual ? fechaAnterior(game.officialDate) : undefined;
-    const partidos = await buscarEnfrentamientosTemporada(homeId, awayId, anio, fechaLimite);
-    encontrados = encontrados.concat(partidos);
-  }
-
-  const ultimos = encontrados
-    .sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate))
-    .slice(0, 3);
-
-  cacheEnfrentamientos.set(clave, ultimos);
-  return ultimos;
-}
-
 async function obtenerBateadoresHistoricos(rosterTeamId, opponentTeamId) {
   const clave = `${rosterTeamId}-${opponentTeamId}`;
   if (cacheBateadoresHistorial.has(clave)) return cacheBateadoresHistorial.get(clave);
@@ -964,52 +1156,6 @@ async function obtenerBateadoresHistoricos(rosterTeamId, opponentTeamId) {
 
   cacheBateadoresHistorial.set(clave, resultado);
   return resultado;
-}
-
-function crearEnfrentamientos(partidos) {
-  if (partidos.length === 0) {
-    return '<p class="vacio">No recent matchups.</p>';
-  }
-
-  return partidos
-    .map((g) => {
-      const away = g.teams.away;
-      const home = g.teams.home;
-      return `
-        <div class="enfrentamiento">
-          <div class="fecha-e">${formatoFechaCorta(g.officialDate)}</div>
-          <div class="fila-e">
-            <span class="${away.isWinner ? 'ganador' : ''}">
-              <img class="logo logo-sm" src="${logoEquipo(away.team.id)}" alt="" loading="lazy">
-              ${away.team.name}
-            </span>
-            <span>${away.score}</span>
-          </div>
-          <div class="fila-e">
-            <span class="${home.isWinner ? 'ganador' : ''}">
-              <img class="logo logo-sm" src="${logoEquipo(home.team.id)}" alt="" loading="lazy">
-              ${home.team.name}
-            </span>
-            <span>${home.score}</span>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-}
-
-function renderHistorialSeccion(game) {
-  const clave = claveEquipos(game);
-  const contenido = cacheEnfrentamientos.has(clave)
-    ? crearEnfrentamientos(cacheEnfrentamientos.get(clave))
-    : (() => {
-        obtenerEnfrentamientos(game)
-          .then(() => actualizarDetalleJuego(game.gamePk))
-          .catch(() => {});
-        return '<p class="vacio">Loading...</p>';
-      })();
-
-  return `<h4 class="subtitulo">Last 3 Matchups</h4>${contenido}`;
 }
 
 function renderBateadoresSeccion(game) {
@@ -1195,7 +1341,6 @@ const SECCIONES_JUEGO = [
   { id: 'resumen', etiqueta: 'Summary' },
   { id: 'abridores', etiqueta: 'Starting Pitchers' },
   { id: 'equipos', etiqueta: 'Teams' },
-  { id: 'historial', etiqueta: 'Matchups' },
   { id: 'ultimos', etiqueta: 'Last 10 Games' },
   { id: 'bateadores', etiqueta: 'Top Hitters' },
 ];
@@ -1218,8 +1363,6 @@ function renderSeccion(game, seccion) {
       return renderAbridoresSlot(game);
     case 'equipos':
       return renderEquipoSlot(game);
-    case 'historial':
-      return renderHistorialSeccion(game);
     case 'ultimos':
       return renderUltimosPartidosSeccion(game);
     case 'bateadores':
