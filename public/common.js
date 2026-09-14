@@ -8,6 +8,7 @@ const API_BASE_LIVE = 'https://statsapi.mlb.com/api/v1.1';
 
 const MAPA_PAISES = {
   USA: 'us',
+  'United States': 'us', // nombre que usa la MLB Stats API para el equipo de Team USA en torneos (WBC, etc.)
   'Dominican Republic': 'do',
   Venezuela: 've',
   'Puerto Rico': 'pr',
@@ -15,11 +16,13 @@ const MAPA_PAISES = {
   Mexico: 'mx',
   Japan: 'jp',
   'South Korea': 'kr',
+  Korea: 'kr', // nombre que usa la MLB Stats API para el equipo de Corea en torneos (WBC, etc.)
   Canada: 'ca',
   Colombia: 'co',
   Panama: 'pa',
   Curacao: 'cw',
   Netherlands: 'nl',
+  'Kingdom of the Netherlands': 'nl', // nombre que usa la MLB Stats API para el equipo neerlandés en torneos (WBC, etc.)
   Nicaragua: 'ni',
   Australia: 'au',
   Germany: 'de',
@@ -28,8 +31,10 @@ const MAPA_PAISES = {
   Aruba: 'aw',
   Honduras: 'hn',
   Taiwan: 'tw',
+  'Chinese Taipei': 'tw', // nombre que usa la MLB Stats API para el equipo de Taiwán en torneos (WBC, etc.)
   China: 'cn',
   'United Kingdom': 'gb',
+  'Great Britain': 'gb', // nombre que usa la MLB Stats API para el equipo británico en torneos (WBC, etc.)
   'South Africa': 'za',
   Italy: 'it',
   France: 'fr',
@@ -38,6 +43,7 @@ const MAPA_PAISES = {
   Guam: 'gu',
   'US Virgin Islands': 'vi',
   'Czech Republic': 'cz',
+  Czechia: 'cz', // nombre que usa la MLB Stats API para el equipo checo en torneos (WBC, etc.)
   Israel: 'il',
   Spain: 'es',
   Poland: 'pl',

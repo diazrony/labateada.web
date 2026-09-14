@@ -989,7 +989,7 @@
   }
 
   .torneo-subtitulo {
-    @apply text-xs text-muted;
+    @apply inline-flex flex-wrap items-center gap-1 text-xs text-muted;
   }
 
   .torneo-flecha {

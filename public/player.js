@@ -11,8 +11,8 @@ let indiceSugerencia = -1;
 let jugadorActual = null;
 let bateoActual = null;
 let pitcheoActual = null;
-let torneosBateoActual = [];
-let torneosPitcheoActual = [];
+let historialBateoActual = [];
+let historialPitcheoActual = [];
 
 // Torneos colapsados por el usuario (vacío = todos abiertos por defecto).
 // Se guarda por id estable en vez de por índice para que la colapsada
@@ -191,6 +191,11 @@ function formatoPromedio(valor) {
   return valor >= 1 ? fijo : fijo.replace(/^0/, '');
 }
 
+// Suma campos crudos de una lista de "filas" de stats, que pueden ser tanto
+// partidos individuales (gameLog, gamesPlayed=1 c/u) como temporadas completas
+// (yearByYear, gamesPlayed=total de la temporada): sumar el campo gamesPlayed/
+// gamesStarted de cada fila da el resultado correcto en ambos casos, a
+// diferencia de contar filas (que sólo sirve para partidos individuales).
 function agregarStatsBateo(partidos) {
   const s = partidos.reduce(
     (acc, split) => {
@@ -206,9 +211,10 @@ function agregarStatsBateo(partidos) {
       acc.hitByPitch += Number(st.hitByPitch) || 0;
       acc.sacFlies += Number(st.sacFlies) || 0;
       acc.totalBases += Number(st.totalBases) || 0;
+      acc.gamesPlayed += Number(st.gamesPlayed) || 0;
       return acc;
     },
-    { atBats: 0, hits: 0, runs: 0, homeRuns: 0, rbi: 0, baseOnBalls: 0, strikeOuts: 0, stolenBases: 0, hitByPitch: 0, sacFlies: 0, totalBases: 0 }
+    { atBats: 0, hits: 0, runs: 0, homeRuns: 0, rbi: 0, baseOnBalls: 0, strikeOuts: 0, stolenBases: 0, hitByPitch: 0, sacFlies: 0, totalBases: 0, gamesPlayed: 0 }
   );
 
   const obpDen = s.atBats + s.baseOnBalls + s.hitByPitch + s.sacFlies;
@@ -221,7 +227,6 @@ function agregarStatsBateo(partidos) {
     obp: formatoPromedio(obp),
     slg: formatoPromedio(slg),
     ops: formatoPromedio(obp + slg),
-    gamesPlayed: partidos.length,
   };
 }
 
@@ -237,10 +242,12 @@ function agregarStatsPitcheo(partidos) {
       acc.wins += Number(st.wins) || 0;
       acc.losses += Number(st.losses) || 0;
       acc.saves += Number(st.saves) || 0;
+      acc.gamesPlayed += Number(st.gamesPlayed) || 0;
+      acc.gamesStarted += Number(st.gamesStarted) || 0;
       acc.ipList.push(st.inningsPitched);
       return acc;
     },
-    { hits: 0, runs: 0, earnedRuns: 0, baseOnBalls: 0, strikeOuts: 0, wins: 0, losses: 0, saves: 0, ipList: [] }
+    { hits: 0, runs: 0, earnedRuns: 0, baseOnBalls: 0, strikeOuts: 0, wins: 0, losses: 0, saves: 0, gamesPlayed: 0, gamesStarted: 0, ipList: [] }
   );
 
   const inningsPitched = sumarEntradasLanzadas(s.ipList);
@@ -252,8 +259,6 @@ function agregarStatsPitcheo(partidos) {
     inningsPitched,
     era: ipDecimal > 0 ? (s.earnedRuns * 9 / ipDecimal).toFixed(2) : '0.00',
     whip: ipDecimal > 0 ? ((s.hits + s.baseOnBalls) / ipDecimal).toFixed(2) : '0.00',
-    gamesPlayed: partidos.length,
-    gamesStarted: partidos.filter((split) => Number(split.stat.gamesStarted) === 1).length,
   };
 }
 
@@ -311,6 +316,130 @@ async function obtenerParticipacionesInternacionales(id, grupo) {
   );
 
   return agruparTorneos(listasPartidos.flat());
+}
+
+// --- Historial de equipos (carrera completa) ---
+//
+// Combina dos fuentes en una sola línea de tiempo por jugador:
+//  - Equipos de club (MLB): yearByYear (sportId=1) agrupado en "pasos"
+//    (stints) de temporadas consecutivas con el mismo equipo.
+//  - Selecciones nacionales: reutiliza los "torneos" ya calculados por
+//    obtenerParticipacionesInternacionales/agruparTorneos.
+//
+// Las fechas de inicio/fin de cada paso por un equipo de club se intentan
+// afinar con el historial de transacciones del jugador (fichajes, trades,
+// selecciones/call-ups, cortes); si no hay una transacción que calce, se cae
+// a la temporada (año) como aproximación.
+
+// La MLB Stats API no expone un campo "country" en el equipo. Para clubes de
+// MLB el país es EE.UU. salvo la única franquicia no estadounidense.
+const PAIS_EQUIPO_CLUB_OVERRIDE = { 141: 'Canada' }; // Toronto Blue Jays
+
+function paisEquipoClub(teamId) {
+  return PAIS_EQUIPO_CLUB_OVERRIDE[teamId] ?? 'USA';
+}
+
+async function obtenerTransacciones(id) {
+  const resp = await fetch(`${API_BASE}/people/${id}?hydrate=transactions`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  return (data.people?.[0]?.transactions ?? []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
+async function obtenerYearByYearClub(id, grupo) {
+  const resp = await fetch(`${API_BASE}/people/${id}/stats?stats=yearByYear&group=${grupo}&sportId=1`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  const splits = data.stats?.find((s) => s.type.displayName === 'yearByYear')?.splits ?? [];
+  // En temporadas con trade la API agrega, además de una fila por equipo, una
+  // fila combinada sin `team` (con `numTeams`): se descarta para no duplicar
+  // las stats ya contadas en las filas individuales por equipo.
+  return splits.filter((split) => split.team?.id);
+}
+
+// Junta temporadas consecutivas (ordenadas por año) del mismo equipo en un
+// solo "paso" (stint). Un regreso al mismo equipo tras estar en otro genera
+// un paso nuevo, no se fusiona con el anterior.
+function agruparPorEquipoConsecutivo(splits) {
+  const ordenados = splits.slice().sort((a, b) => Number(a.season) - Number(b.season));
+  const stints = [];
+  ordenados.forEach((split) => {
+    const ultimo = stints[stints.length - 1];
+    if (ultimo && ultimo.team?.id === split.team?.id) {
+      ultimo.temporadas.push(split);
+    } else {
+      stints.push({ team: split.team, league: split.league, temporadas: [split] });
+    }
+  });
+  return stints;
+}
+
+// Tipos de transacción, en orden de confianza, que marcan que un jugador
+// entró ("toTeam") o salió ("fromTeam") de un equipo. "ASG" (assigned) es el
+// menos confiable: también se usa para invitaciones a camp de entrenamiento.
+const TIPOS_TRANSACCION_INICIO = ['TR', 'SE', 'SFA', 'CU', 'ASG'];
+const TIPOS_TRANSACCION_FIN = ['TR', 'REL', 'DFA'];
+
+function buscarFechaTransaccion(transacciones, teamId, tipos, ladoCampo, fechaReferencia) {
+  for (const tipo of tipos) {
+    const candidatas = transacciones.filter((t) => t.typeCode === tipo && t[ladoCampo]?.id === teamId);
+    if (candidatas.length === 0) continue;
+    candidatas.sort((a, b) => Math.abs(new Date(a.date) - fechaReferencia) - Math.abs(new Date(b.date) - fechaReferencia));
+    return candidatas[0].date;
+  }
+  return null;
+}
+
+function construirStintsClub(splits, transacciones, equipoActualId) {
+  const stints = agruparPorEquipoConsecutivo(splits);
+
+  return stints.map((stint, indice) => {
+    const primeraTemporada = Number(stint.temporadas[0].season);
+    const ultimaTemporada = Number(stint.temporadas[stint.temporadas.length - 1].season);
+    const refInicio = new Date(`${primeraTemporada}-04-01`);
+    const refFin = new Date(`${ultimaTemporada}-09-30`);
+
+    const esActual = stint.team?.id === equipoActualId && indice === stints.length - 1;
+
+    return {
+      tipo: 'club',
+      team: stint.team,
+      league: stint.league,
+      pais: paisEquipoClub(stint.team?.id),
+      temporadaInicio: primeraTemporada,
+      temporadaFin: ultimaTemporada,
+      fechaInicio: buscarFechaTransaccion(transacciones, stint.team?.id, TIPOS_TRANSACCION_INICIO, 'toTeam', refInicio),
+      fechaFin: esActual ? null : buscarFechaTransaccion(transacciones, stint.team?.id, TIPOS_TRANSACCION_FIN, 'fromTeam', refFin),
+      actual: esActual,
+      partidos: stint.temporadas,
+    };
+  });
+}
+
+function construirStintsNacional(torneos) {
+  return torneos.map((torneo) => {
+    const fechas = torneo.partidos.map((p) => p.date).filter(Boolean).sort();
+    return {
+      tipo: 'nacional',
+      team: torneo.team,
+      league: torneo.league,
+      pais: torneo.team?.name ?? null,
+      temporadaInicio: Number(torneo.season),
+      temporadaFin: Number(torneo.season),
+      fechaInicio: fechas[0] ?? null,
+      fechaFin: fechas[fechas.length - 1] ?? null,
+      actual: false,
+      partidos: torneo.partidos,
+    };
+  });
+}
+
+function construirHistorialUnificado(stintsClub, stintsNacional) {
+  return [...stintsClub, ...stintsNacional].sort((a, b) => {
+    const fa = a.fechaInicio ?? `${a.temporadaInicio}-01-01`;
+    const fb = b.fechaInicio ?? `${b.temporadaInicio}-01-01`;
+    return new Date(fb) - new Date(fa);
+  });
 }
 
 function crearEncabezadoPerfil(p) {
@@ -532,34 +661,136 @@ function crearSplitPitcheo(titulo, s) {
   `;
 }
 
-function idTorneo(tipo, torneo) {
-  return `${tipo}-${torneo.season}-${torneo.league?.id ?? 'na'}-${torneo.team?.id ?? 'na'}`;
+function idHistorial(tipo, stint) {
+  return `${tipo}-${stint.tipo}-${stint.temporadaInicio}-${stint.league?.id ?? 'na'}-${stint.team?.id ?? 'na'}`;
 }
 
-// Colapsa/expande una tarjeta de torneo sin perder el resto del estado de la
-// vista (re-renderiza vía refrescarVista, igual que al ordenar una tabla).
+// Colapsa/expande una tarjeta de historial sin perder el resto del estado de
+// la vista (re-renderiza vía refrescarVista, igual que al ordenar una tabla).
 function alternarTorneo(id) {
   if (torneosColapsados.has(id)) torneosColapsados.delete(id);
   else torneosColapsados.add(id);
   refrescarVista();
 }
 
-function crearTarjetaTorneo(personaId, tipo, torneo) {
-  const equipo = torneo.team;
-  const id = idTorneo(tipo, torneo);
+function formatoMesAnio(fechaISO) {
+  return new Date(`${fechaISO}T12:00:00`).toLocaleDateString('en', { month: 'short', year: 'numeric' });
+}
+
+function crearRangoFechas(stint) {
+  const inicio = stint.fechaInicio ? formatoMesAnio(stint.fechaInicio) : String(stint.temporadaInicio);
+  if (stint.actual) return `${inicio} – Present`;
+  const fin = stint.fechaFin ? formatoMesAnio(stint.fechaFin) : String(stint.temporadaFin);
+  return inicio === fin ? inicio : `${inicio} – ${fin}`;
+}
+
+function crearFilaTemporadaBateo(split) {
+  const s = split.stat;
+  return `
+    <tr>
+      <td>${split.season}</td>
+      <td>${s.gamesPlayed}</td>
+      <td>${s.avg}</td>
+      <td>${s.obp}</td>
+      <td>${s.slg}</td>
+      <td>${s.ops}</td>
+      <td>${s.homeRuns}</td>
+      <td>${s.rbi}</td>
+      <td>${s.stolenBases}</td>
+      <td>${s.baseOnBalls}</td>
+      <td>${s.strikeOuts}</td>
+    </tr>
+  `;
+}
+
+function crearTablaTemporadasBateo(tablaId, splitsTemporada) {
+  if (!splitsTemporada || splitsTemporada.length === 0) return '<p class="vacio">No season data.</p>';
+
+  const columnas = ['Season', 'G', 'AVG', 'OBP', 'SLG', 'OPS', 'HR', 'RBI', 'SB', 'BB', 'SO'];
+  const porTemporadaDesc = splitsTemporada.slice().sort((a, b) => Number(b.season) - Number(a.season));
+  const filas = ordenarFilas(tablaId, porTemporadaDesc, (split) => {
+    const s = split.stat;
+    return [split.season, s.gamesPlayed, s.avg, s.obp, s.slg, s.ops, s.homeRuns, s.rbi, s.stolenBases, s.baseOnBalls, s.strikeOuts];
+  });
+
+  return `
+    <div class="boxscore-wrap">
+      <table class="tabla-stats tabla-abridor">
+        <thead><tr>${crearEncabezadoOrdenable(tablaId, columnas)}</tr></thead>
+        <tbody>${filas.map(crearFilaTemporadaBateo).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function crearFilaTemporadaPitcheo(split) {
+  const s = split.stat;
+  const decision = `${s.wins}-${s.losses}`;
+  return `
+    <tr>
+      <td>${split.season}</td>
+      <td>${s.gamesPlayed}</td>
+      <td>${s.gamesStarted}</td>
+      <td>${decision}</td>
+      <td>${s.era}</td>
+      <td>${s.whip}</td>
+      <td>${s.inningsPitched}</td>
+      <td>${s.strikeOuts}</td>
+      <td>${s.baseOnBalls}</td>
+      <td>${s.saves}</td>
+    </tr>
+  `;
+}
+
+function crearTablaTemporadasPitcheo(tablaId, splitsTemporada) {
+  if (!splitsTemporada || splitsTemporada.length === 0) return '<p class="vacio">No season data.</p>';
+
+  const columnas = ['Season', 'G', 'GS', 'W-L', 'ERA', 'WHIP', 'IP', 'SO', 'BB', 'SV'];
+  const porTemporadaDesc = splitsTemporada.slice().sort((a, b) => Number(b.season) - Number(a.season));
+  const filas = ordenarFilas(tablaId, porTemporadaDesc, (split) => {
+    const s = split.stat;
+    return [split.season, s.gamesPlayed, s.gamesStarted, `${s.wins}-${s.losses}`, s.era, s.whip, s.inningsPitched, s.strikeOuts, s.baseOnBalls, s.saves];
+  });
+
+  return `
+    <div class="boxscore-wrap">
+      <table class="tabla-stats tabla-abridor">
+        <thead><tr>${crearEncabezadoOrdenable(tablaId, columnas)}</tr></thead>
+        <tbody>${filas.map(crearFilaTemporadaPitcheo).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function crearTarjetaHistorial(personaId, tipo, stint) {
+  const equipo = stint.team;
+  const id = idHistorial(tipo, stint);
   const abierto = !torneosColapsados.has(id);
-  const stats = tipo === 'bateo' ? agregarStatsBateo(torneo.partidos) : agregarStatsPitcheo(torneo.partidos);
-  const tablaId = `torneo-${tipo}-${personaId}-${torneo.season}-${torneo.league?.id ?? 'na'}-${equipo?.id ?? 'na'}`;
+  const stats = tipo === 'bateo' ? agregarStatsBateo(stint.partidos) : agregarStatsPitcheo(stint.partidos);
+  const tablaId = `historial-${id}-${personaId}`;
   const tablaHtml =
-    tipo === 'bateo' ? crearTablaRecientesBateo(tablaId, torneo.partidos) : crearTablaRecientesPitcheo(tablaId, torneo.partidos);
+    stint.tipo === 'club'
+      ? tipo === 'bateo'
+        ? crearTablaTemporadasBateo(tablaId, stint.partidos)
+        : crearTablaTemporadasPitcheo(tablaId, stint.partidos)
+      : tipo === 'bateo'
+        ? crearTablaRecientesBateo(tablaId, stint.partidos)
+        : crearTablaRecientesPitcheo(tablaId, stint.partidos);
+
+  const titulo = stint.tipo === 'club' ? (equipo?.name ?? 'Unknown team') : `${stint.league?.name ?? 'International'} · ${stint.temporadaInicio}`;
+  const subtitulo = stint.tipo === 'club' ? (stint.league?.name ?? '') : (equipo?.name ?? '');
+  const bandera = banderaUrl(stint.pais);
 
   return `
     <div class="torneo-card">
       <button type="button" class="torneo-cabecera" onclick="alternarTorneo('${id}')" aria-expanded="${abierto}">
         ${equipo ? `<img class="logo logo-sm" src="${logoEquipo(equipo.id)}" alt="" loading="lazy">` : ''}
         <span class="torneo-info">
-          <span class="torneo-titulo">${torneo.league?.name ?? 'International'} · ${torneo.season}</span>
-          ${equipo ? `<span class="torneo-subtitulo">${equipo.name}</span>` : ''}
+          <span class="torneo-titulo">${titulo}</span>
+          <span class="torneo-subtitulo">
+            ${bandera ? `<img class="perfil-bandera" src="${bandera}" alt="" loading="lazy">` : ''}
+            ${subtitulo ? `${subtitulo} · ` : ''}${crearRangoFechas(stint)}
+          </span>
         </span>
         <svg class="torneo-flecha ${abierto ? 'torneo-flecha-abierta' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 9l6 6 6-6"></path>
@@ -570,23 +801,23 @@ function crearTarjetaTorneo(personaId, tipo, torneo) {
   `;
 }
 
-function crearSeccionTorneos(personaId, torneosBateo, torneosPitcheo) {
+function crearSeccionHistorial(personaId, historialBateo, historialPitcheo) {
   const tarjetas = [
-    ...torneosBateo.map((t) => crearTarjetaTorneo(personaId, 'bateo', t)),
-    ...torneosPitcheo.map((t) => crearTarjetaTorneo(personaId, 'pitcheo', t)),
+    ...historialBateo.map((stint) => crearTarjetaHistorial(personaId, 'bateo', stint)),
+    ...historialPitcheo.map((stint) => crearTarjetaHistorial(personaId, 'pitcheo', stint)),
   ];
 
   return `
-    <h3 class="subtitulo">National Team &amp; Tournaments</h3>
+    <h3 class="subtitulo">Career Team History</h3>
     ${
       tarjetas.length === 0
-        ? '<p class="vacio">No international tournament appearances found.</p>'
+        ? '<p class="vacio">No team history found.</p>'
         : `<div class="torneos-lista">${tarjetas.join('')}</div>`
     }
   `;
 }
 
-function renderPerfil(p, bateo, pitcheo, torneosBateo, torneosPitcheo) {
+function renderPerfil(p, bateo, pitcheo, historialBateo, historialPitcheo) {
   contenedorPerfil.innerHTML = `
     ${crearEncabezadoPerfil(p)}
     ${
@@ -614,13 +845,13 @@ function renderPerfil(p, bateo, pitcheo, torneosBateo, torneosPitcheo) {
       ${bateo ? `${crearSplitBateo('vs LHP', bateo.vsLeft)}${crearSplitBateo('vs RHP', bateo.vsRight)}` : ''}
       ${pitcheo ? `${crearSplitPitcheo('vs LHB', pitcheo.vsLeft)}${crearSplitPitcheo('vs RHB', pitcheo.vsRight)}` : ''}
     </div>
-    ${crearSeccionTorneos(p.id, torneosBateo, torneosPitcheo)}
+    ${crearSeccionHistorial(p.id, historialBateo, historialPitcheo)}
   `;
 }
 
 // Hook consumido por common.js al ordenar una tabla por columna (th-ordenable).
 function refrescarVista() {
-  if (jugadorActual) renderPerfil(jugadorActual, bateoActual, pitcheoActual, torneosBateoActual, torneosPitcheoActual);
+  if (jugadorActual) renderPerfil(jugadorActual, bateoActual, pitcheoActual, historialBateoActual, historialPitcheoActual);
 }
 
 // Soporta llegar acá como destino de un link "de vuelta" (ver urlRetornoJugador
@@ -648,22 +879,33 @@ async function cargarPerfil(id) {
     const mostrarBateo = !esPitcher;
     const mostrarPitcheo = esPitcher || esDosVias;
 
-    const [bateo, pitcheo, torneosBateo, torneosPitcheo] = await Promise.all([
+    const [bateo, pitcheo, torneosBateo, torneosPitcheo, transacciones, yearByYearBateo, yearByYearPitcheo] = await Promise.all([
       mostrarBateo ? obtenerStatsGrupo(id, 'hitting', TEMPORADA) : Promise.resolve(null),
       mostrarPitcheo ? obtenerStatsGrupo(id, 'pitching', TEMPORADA) : Promise.resolve(null),
       mostrarBateo ? obtenerParticipacionesInternacionales(id, 'hitting') : Promise.resolve([]),
       mostrarPitcheo ? obtenerParticipacionesInternacionales(id, 'pitching') : Promise.resolve([]),
+      obtenerTransacciones(id).catch(() => []),
+      mostrarBateo ? obtenerYearByYearClub(id, 'hitting') : Promise.resolve([]),
+      mostrarPitcheo ? obtenerYearByYearClub(id, 'pitching') : Promise.resolve([]),
     ]);
+
+    const equipoActualId = persona.currentTeam?.id ?? null;
+    const historialBateo = mostrarBateo
+      ? construirHistorialUnificado(construirStintsClub(yearByYearBateo, transacciones, equipoActualId), construirStintsNacional(torneosBateo))
+      : [];
+    const historialPitcheo = mostrarPitcheo
+      ? construirHistorialUnificado(construirStintsClub(yearByYearPitcheo, transacciones, equipoActualId), construirStintsNacional(torneosPitcheo))
+      : [];
 
     jugadorActual = persona;
     bateoActual = bateo;
     pitcheoActual = pitcheo;
-    torneosBateoActual = torneosBateo;
-    torneosPitcheoActual = torneosPitcheo;
+    historialBateoActual = historialBateo;
+    historialPitcheoActual = historialPitcheo;
     inputEl.value = persona.fullName;
     document.title = `${persona.fullName} · La Bateada`;
 
-    renderPerfil(persona, bateo, pitcheo, torneosBateo, torneosPitcheo);
+    renderPerfil(persona, bateo, pitcheo, historialBateo, historialPitcheo);
 
     if (Number.isFinite(scrollGuardadoPendiente)) {
       window.scrollTo(0, scrollGuardadoPendiente);
