@@ -19,6 +19,11 @@ let historialPitcheoActual = [];
 // sobreviva a los re-renders (ej. al ordenar una tabla).
 const torneosColapsados = new Set();
 
+// Cuántas filas de "Recent Games" se muestran por jugador+grupo (hitting/
+// pitching); crece de a RECIENTES_POR_PAGINA vía el botón "Load 10 more".
+const recientesMostrados = new Map();
+const RECIENTES_POR_PAGINA = 10;
+
 async function buscarJugadores(query) {
   try {
     const resp = await fetch(
@@ -153,8 +158,7 @@ async function obtenerStatsGrupo(id, grupo, temporada) {
   const season = datosStats.stats?.find((s) => s.type.displayName === 'season')?.splits?.[0]?.stat ?? null;
   const gameLog = (datosStats.stats?.find((s) => s.type.displayName === 'gameLog')?.splits ?? [])
     .slice()
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 10);
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
   const splits = datosSplits.stats?.[0]?.splits ?? [];
 
   return {
@@ -563,23 +567,45 @@ function crearFilaRecienteBateo(split) {
   `;
 }
 
-function crearTablaRecientesBateo(tablaId, gameLog) {
-  if (!gameLog || gameLog.length === 0) return '<p class="vacio">No recent games.</p>';
+function crearTablaRecientes(tablaId, personId, grupo, gameLogCompleto, columnas, crearFila, obtenerValores) {
+  if (!gameLogCompleto || gameLogCompleto.length === 0) return '<p class="vacio">No recent games.</p>';
 
-  const columnas = ['Date', 'Opp', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO'];
-  const filas = ordenarFilas(tablaId, gameLog, (split) => {
-    const s = split.stat;
-    return [split.date, split.opponent?.name ?? '', s.atBats, s.runs, s.hits, s.homeRuns, s.rbi, s.baseOnBalls, s.strikeOuts];
-  });
+  const claveMostrados = `${personId}-${grupo}`;
+  const mostrados = recientesMostrados.get(claveMostrados) ?? RECIENTES_POR_PAGINA;
+  const gameLog = gameLogCompleto.slice(0, mostrados);
+  const filas = ordenarFilas(tablaId, gameLog, obtenerValores);
+  const hayMas = mostrados < gameLogCompleto.length;
 
   return `
     <div class="boxscore-wrap">
       <table class="tabla-stats tabla-abridor">
         <thead><tr>${crearEncabezadoOrdenable(tablaId, columnas)}</tr></thead>
-        <tbody>${filas.map(crearFilaRecienteBateo).join('')}</tbody>
+        <tbody>${filas.map(crearFila).join('')}</tbody>
       </table>
     </div>
+    ${hayMas ? `<button type="button" class="cargar-mas-btn" onclick="cargarMasRecientes(${personId}, '${grupo}')">Load 10 more</button>` : ''}
   `;
+}
+
+// El botón sólo aparece mientras quedan más filas que mostrar (ver hayMas en
+// crearTablaRecientes), así que no hace falta topar este contador contra la
+// longitud real: slice() de por sí ignora un índice final más grande que el
+// array.
+function cargarMasRecientes(personId, grupo) {
+  const claveMostrados = `${personId}-${grupo}`;
+  const mostrados = recientesMostrados.get(claveMostrados) ?? RECIENTES_POR_PAGINA;
+  recientesMostrados.set(claveMostrados, mostrados + RECIENTES_POR_PAGINA);
+  refrescarVista();
+}
+
+function crearTablaRecientesBateo(tablaId, personId, gameLog, grupo = 'hitting') {
+  const columnas = ['Date', 'Opp', 'AB', 'R', 'H', 'HR', 'RBI', 'BB', 'SO'];
+  const obtenerValores = (split) => {
+    const s = split.stat;
+    return [split.date, split.opponent?.name ?? '', s.atBats, s.runs, s.hits, s.homeRuns, s.rbi, s.baseOnBalls, s.strikeOuts];
+  };
+
+  return crearTablaRecientes(tablaId, personId, grupo, gameLog, columnas, crearFilaRecienteBateo, obtenerValores);
 }
 
 function crearFilaRecientePitcheo(split) {
@@ -606,25 +632,16 @@ function crearFilaRecientePitcheo(split) {
   `;
 }
 
-function crearTablaRecientesPitcheo(tablaId, gameLog) {
-  if (!gameLog || gameLog.length === 0) return '<p class="vacio">No recent games.</p>';
-
+function crearTablaRecientesPitcheo(tablaId, personId, gameLog, grupo = 'pitching') {
   const columnas = ['Date', 'Opp', 'Role', 'IP', 'H', 'R', 'ER', 'BB', 'K', 'Dec'];
-  const filas = ordenarFilas(tablaId, gameLog, (split) => {
+  const obtenerValores = (split) => {
     const s = split.stat;
     const esAbridor = Number(s.gamesStarted) === 1;
     const decision = s.wins === 1 ? 'W' : s.losses === 1 ? 'L' : s.saves === 1 ? 'SV' : '';
     return [split.date, split.opponent?.name ?? '', esAbridor ? 'SP' : 'RP', s.inningsPitched, s.hits, s.runs, s.earnedRuns, s.baseOnBalls, s.strikeOuts, decision];
-  });
+  };
 
-  return `
-    <div class="boxscore-wrap">
-      <table class="tabla-stats tabla-abridor">
-        <thead><tr>${crearEncabezadoOrdenable(tablaId, columnas)}</tr></thead>
-        <tbody>${filas.map(crearFilaRecientePitcheo).join('')}</tbody>
-      </table>
-    </div>
-  `;
+  return crearTablaRecientes(tablaId, personId, grupo, gameLog, columnas, crearFilaRecientePitcheo, obtenerValores);
 }
 
 function crearSplitBateo(titulo, s) {
@@ -774,8 +791,8 @@ function crearTarjetaHistorial(personaId, tipo, stint) {
         ? crearTablaTemporadasBateo(tablaId, stint.partidos)
         : crearTablaTemporadasPitcheo(tablaId, stint.partidos)
       : tipo === 'bateo'
-        ? crearTablaRecientesBateo(tablaId, stint.partidos)
-        : crearTablaRecientesPitcheo(tablaId, stint.partidos);
+        ? crearTablaRecientesBateo(tablaId, personaId, stint.partidos, id)
+        : crearTablaRecientesPitcheo(tablaId, personaId, stint.partidos, id);
 
   const titulo = stint.tipo === 'club' ? (equipo?.name ?? 'Unknown team') : `${stint.league?.name ?? 'International'} · ${stint.temporadaInicio}`;
   const subtitulo = stint.tipo === 'club' ? (stint.league?.name ?? '') : (equipo?.name ?? '');
@@ -826,7 +843,7 @@ function renderPerfil(p, bateo, pitcheo, historialBateo, historialPitcheo) {
       <h3 class="subtitulo">Season Hitting Stats</h3>
       ${statsBateoTiles(bateo.season)}
       <h3 class="subtitulo">Recent Games (Hitting)</h3>
-      ${crearTablaRecientesBateo(`recientes-bateo-${p.id}`, bateo.gameLog)}
+      ${crearTablaRecientesBateo(`recientes-bateo-${p.id}`, p.id, bateo.gameLog)}
     `
         : ''
     }
@@ -836,7 +853,7 @@ function renderPerfil(p, bateo, pitcheo, historialBateo, historialPitcheo) {
       <h3 class="subtitulo">Season Pitching Stats</h3>
       ${statsPitcheoTiles(pitcheo.season)}
       <h3 class="subtitulo">Recent Games (Pitching)</h3>
-      ${crearTablaRecientesPitcheo(`recientes-pitcheo-${p.id}`, pitcheo.gameLog)}
+      ${crearTablaRecientesPitcheo(`recientes-pitcheo-${p.id}`, p.id, pitcheo.gameLog)}
     `
         : ''
     }

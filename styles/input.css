@@ -730,6 +730,10 @@
     @apply w-12 shrink-0 text-right font-semibold tabular-nums text-ink-900;
   }
 
+  .cargar-mas-btn {
+    @apply mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-md border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink-700 transition-colors hover:border-accent-400 hover:text-accent-600;
+  }
+
   /* Field diamond (Teams tab) -------------------------------------------------- */
 
   .campo-tabs {
@@ -832,38 +836,6 @@
     @apply mb-2 text-xs font-bold uppercase tracking-wider text-muted;
   }
 
-  .equipo-lista {
-    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
-  }
-
-  .equipo-card.abierto {
-    @apply col-span-full;
-  }
-
-  .equipo-card {
-    @apply rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors duration-150;
-  }
-
-  .equipo-card:hover {
-    @apply border-line-strong;
-  }
-
-  .equipo-card.abierto {
-    @apply border-accent-400;
-  }
-
-  .equipo-card-encabezado {
-    @apply flex cursor-pointer items-center gap-2.5;
-  }
-
-  .equipo-card-nombre {
-    @apply flex-1 truncate text-base font-semibold;
-  }
-
-  .equipo-card-record {
-    @apply shrink-0 text-sm tabular-nums text-muted;
-  }
-
   .equipo-jugador {
     @apply mt-0.5 flex items-center gap-1 text-xs font-normal text-muted;
   }
@@ -914,6 +886,10 @@
 
   .perfil-foto {
     @apply h-24 w-24 shrink-0 rounded-full border-2 border-line bg-line object-cover sm:h-28 sm:w-28;
+  }
+
+  .equipo-perfil-logo {
+    @apply h-20 w-20 shrink-0 object-contain sm:h-24 sm:w-24;
   }
 
   .perfil-info {

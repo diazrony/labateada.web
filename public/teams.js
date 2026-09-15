@@ -1,437 +1,179 @@
 const TEMPORADA = new Date().getFullYear();
 
-const LIGAS = { 103: 'American League', 104: 'National League' };
-
-const DIVISIONES = {
-  200: { nombre: 'AL West', liga: 103 },
-  201: { nombre: 'AL East', liga: 103 },
-  202: { nombre: 'AL Central', liga: 103 },
-  203: { nombre: 'NL West', liga: 104 },
-  204: { nombre: 'NL East', liga: 104 },
-  205: { nombre: 'NL Central', liga: 104 },
-};
-
-const SECCIONES_EQUIPO = [
-  { id: 'ultimos', etiqueta: 'Last 10 Games' },
-  { id: 'bateadores', etiqueta: 'Top Hitters vs Team' },
-  { id: 'pitchers', etiqueta: 'Top K Pitchers vs Team' },
+const VISTAS_STANDINGS = [
+  { id: 'division', etiqueta: 'Division' },
+  { id: 'league', etiqueta: 'League' },
+  { id: 'overall', etiqueta: 'Overall' },
 ];
 
-const SECCION_EQUIPO_POR_DEFECTO = 'ultimos';
-
 let registros = new Map();
-const expandidos = new Set();
-const seccionActiva = new Map();
-const cacheRosterActivo = new Map();
-const cacheTopBateadores = new Map();
-const cacheTopPitchers = new Map();
-const cacheUltimosPartidos = new Map();
+let vistaActiva = 'division';
+let scrollGuardadoPendiente = null;
 
-function trocear(arr, tam) {
-  const resultado = [];
-  for (let i = 0; i < arr.length; i += tam) resultado.push(arr.slice(i, i + tam));
-  return resultado;
+function ordenarPorPct(a, b) {
+  const pa = a.wins / (a.wins + a.losses || 1);
+  const pb = b.wins / (b.wins + b.losses || 1);
+  return pb - pa;
 }
 
-async function obtenerRosterActivo(teamId) {
-  if (cacheRosterActivo.has(teamId)) return cacheRosterActivo.get(teamId);
-
-  const resp = await fetch(`${API_BASE}/teams/${teamId}/roster?rosterType=active`);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
-
-  const roster = data.roster ?? [];
-  cacheRosterActivo.set(teamId, roster);
-  return roster;
-}
-
-async function obtenerStatsVsEquipo(personIds, grupo, teamId) {
-  if (personIds.length === 0) return [];
-
-  const lotes = trocear(personIds, 45);
-  const respuestas = await Promise.all(
-    lotes.map((ids) =>
-      fetch(
-        `${API_BASE}/people?personIds=${ids.join(',')}&hydrate=stats(group=${grupo},type=vsTeamTotal,opposingTeamId=${teamId},sportId=1)`
-      ).then((resp) => {
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return resp.json();
-      })
-    )
-  );
-
-  return respuestas.flatMap((data) => data.people ?? []);
-}
-
-// Compara bateadores/lanzadores de todo el resto de la liga contra un equipo:
-// junta los rosters activos de los demás equipos de la misma liga y consulta
-// sus stats vsTeamTotal frente al equipo seleccionado.
-async function obtenerTopLigaVsEquipo(equipo, grupo) {
-  const rivales = [...registros.values()].filter((r) => r.leagueId === equipo.leagueId && r.id !== equipo.id);
-
-  const rosters = await Promise.all(
-    rivales.map((rival) => obtenerRosterActivo(rival.id).then((roster) => ({ rival, roster })))
-  );
-
-  const candidatos = [];
-  rosters.forEach(({ rival, roster }) => {
-    roster.forEach((j) => {
-      const esPitcher = j.position.type === 'Pitcher';
-      if ((grupo === 'pitching') === esPitcher) {
-        candidatos.push({
-          id: j.person.id,
-          nombre: j.person.fullName,
-          equipoId: rival.id,
-          equipoNombre: rival.nombre,
-        });
-      }
-    });
-  });
-
-  const personas = await obtenerStatsVsEquipo(candidatos.map((c) => c.id), grupo, equipo.id);
-  const statsPorId = new Map(personas.map((p) => [p.id, p.stats?.[0]?.splits?.[0]?.stat]));
-  const statClave = grupo === 'pitching' ? 'strikeOuts' : 'hits';
-
-  return candidatos
-    .map((c) => ({ ...c, stat: statsPorId.get(c.id) }))
-    .filter((c) => c.stat && Number(c.stat[statClave]) > 0)
-    .sort((a, b) => Number(b.stat[statClave]) - Number(a.stat[statClave]))
-    .slice(0, 8);
-}
-
-async function obtenerUltimosPartidos(teamId, temporada) {
-  if (cacheUltimosPartidos.has(teamId)) return cacheUltimosPartidos.get(teamId);
-
-  const url = `${API_BASE}/schedule?sportId=1&teamId=${teamId}&season=${temporada}&gameType=R&startDate=${temporada}-01-01&endDate=${fechaHoy()}&hydrate=linescore`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
-
-  const partidos = (data.dates ?? [])
-    .flatMap((f) => f.games)
-    .filter((g) => g.status.abstractGameState === 'Final')
-    .sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate))
-    .slice(0, 10);
-
-  cacheUltimosPartidos.set(teamId, partidos);
-  return partidos;
-}
-
-function crearFilaPartido(equipo, game, listaGamePks) {
-  const esVisitante = game.teams.away.team.id === equipo.id;
-  const propio = esVisitante ? game.teams.away : game.teams.home;
-  const rival = esVisitante ? game.teams.home : game.teams.away;
-  const gano = propio.isWinner;
-
-  const url = `/game.html?gamePk=${game.gamePk}&list=${listaGamePks}&team=${equipo.id}`;
-
-  return `
-    <a class="partido-mini" href="${url}">
-      <span class="partido-fecha">${formatoFechaCorta(game.officialDate)}</span>
-      <span class="partido-rival">
-        <span class="partido-arroba">${esVisitante ? '@' : 'vs'}</span>
-        <img class="logo logo-sm" src="${logoEquipo(rival.team.id)}" alt="" loading="lazy">
-        ${rival.team.name}
-      </span>
-      <span class="partido-decision ${gano ? 'partido-gano' : 'partido-perdio'}">${gano ? 'W' : 'L'}</span>
-      <span class="partido-marcador">${propio.score}-${rival.score}</span>
-    </a>
-  `;
-}
-
-function renderUltimosPartidos(equipo) {
-  if (!cacheUltimosPartidos.has(equipo.id)) {
-    obtenerUltimosPartidos(equipo.id, TEMPORADA)
-      .then(() => {
-        if (expandidos.has(equipo.id)) renderLigas();
-      })
-      .catch(() => {});
-    return '<p class="vacio">Loading last games...</p>';
-  }
-
-  const partidos = cacheUltimosPartidos.get(equipo.id);
-  if (partidos.length === 0) {
-    return '<p class="vacio">No completed games yet.</p>';
-  }
-
-  const listaGamePks = partidos.map((g) => g.gamePk).join(',');
-
-  return `
-    <h4 class="subtitulo">Last ${partidos.length} Games</h4>
-    <div class="partidos-lista">
-      ${partidos.map((g) => crearFilaPartido(equipo, g, listaGamePks)).join('')}
-    </div>
-  `;
-}
-
-function crearFilaTopBateador(j) {
-  const s = j.stat;
-  return `
-    <tr>
-      <td><img class="foto-jugador" src="${fotoJugador(j.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-      <td class="nombre-jugador">
-        ${j.nombre}
-        <span class="equipo-jugador"><img class="logo logo-sm" src="${logoEquipo(j.equipoId)}" alt="" loading="lazy">${j.equipoNombre}</span>
-      </td>
-      <td>${s.gamesPlayed}</td>
-      <td>${s.atBats}</td>
-      <td>${s.hits}</td>
-      <td>${s.homeRuns}</td>
-      <td>${s.avg}</td>
-      <td>${s.ops}</td>
-    </tr>
-  `;
-}
-
-function crearFilaTopPitcher(j) {
-  const s = j.stat;
-  return `
-    <tr>
-      <td><img class="foto-jugador" src="${fotoJugador(j.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-      <td class="nombre-jugador">
-        ${j.nombre}
-        <span class="equipo-jugador"><img class="logo logo-sm" src="${logoEquipo(j.equipoId)}" alt="" loading="lazy">${j.equipoNombre}</span>
-      </td>
-      <td>${s.gamesPlayed}</td>
-      <td>${s.strikeOuts}</td>
-      <td>${s.baseOnBalls}</td>
-      <td>${s.hits}</td>
-      <td>${s.avg}</td>
-    </tr>
-  `;
-}
-
-function renderTopSeccion(equipo, grupo) {
-  const cache = grupo === 'pitching' ? cacheTopPitchers : cacheTopBateadores;
-
-  if (!cache.has(equipo.id)) {
-    obtenerTopLigaVsEquipo(equipo, grupo)
-      .then((resultado) => {
-        cache.set(equipo.id, resultado);
-        if (expandidos.has(equipo.id)) renderLigas();
-      })
-      .catch(() => {});
-    return `<p class="vacio">Scanning ${equipo.leagueNombre} rosters, this can take a few seconds...</p>`;
-  }
-
-  const datos = cache.get(equipo.id);
-  const columnas = grupo === 'pitching' ? ['G', 'K', 'BB', 'H', 'AVG'] : ['G', 'AB', 'H', 'HR', 'AVG', 'OPS'];
-  const crearFila = grupo === 'pitching' ? crearFilaTopPitcher : crearFilaTopBateador;
-  const titulo = grupo === 'pitching' ? 'Most strikeouts vs' : 'Most hits vs';
-  const obtenerValores =
-    grupo === 'pitching'
-      ? (j) => {
-          const s = j.stat;
-          return [s.gamesPlayed, s.strikeOuts, s.baseOnBalls, s.hits, s.avg];
-        }
-      : (j) => {
-          const s = j.stat;
-          return [s.gamesPlayed, s.atBats, s.hits, s.homeRuns, s.avg, s.ops];
-        };
-
-  return `
-    <h4 class="subtitulo">${titulo} ${equipo.nombre}</h4>
-    ${crearTablaJugadores(`top-${grupo}-${equipo.id}`, datos, columnas, crearFila, obtenerValores)}
-  `;
-}
-
-function renderInfoSeccion(equipo) {
-  const gb = equipo.gamesBack === '-' ? '0' : equipo.gamesBack;
-
-  return `
-    <div class="equipo-registro">
-      <span class="equipo-registro-item"><strong>League:</strong> ${equipo.leagueNombre}</span>
-      <span class="equipo-registro-item"><strong>Division:</strong> ${equipo.divisionNombre}</span>
-      <span class="equipo-registro-item"><strong>Division rank:</strong> ${ordinal(equipo.divisionRank)}</span>
-      <span class="equipo-registro-item"><strong>League rank:</strong> ${ordinal(equipo.leagueRank)}</span>
-      <span class="equipo-registro-item"><strong>Record:</strong> ${equipo.wins}-${equipo.losses}</span>
-      <span class="equipo-registro-item"><strong>GB:</strong> ${gb}</span>
-    </div>
-  `;
-}
-
-function renderSeccionEquipo(equipo, seccion) {
-  switch (seccion) {
-    case 'pitchers':
-      return renderTopSeccion(equipo, 'pitching');
-    case 'bateadores':
-      return renderTopSeccion(equipo, 'hitting');
-    default:
-      return renderUltimosPartidos(equipo);
-  }
-}
-
-function cambiarSeccionEquipo(event, teamId, seccion) {
-  event.stopPropagation();
-  seccionActiva.set(teamId, seccion);
+function cambiarVista(vista) {
+  vistaActiva = vista;
   renderLigas();
 }
 
-function crearPestanasSeccionEquipo(teamId, activa) {
+function crearPestanasVista() {
   return `
     <div class="seccion-tabs" role="tablist">
-      ${SECCIONES_EQUIPO.map(
-        (s) => `
-        <button type="button" class="seccion-tab ${activa === s.id ? 'activo' : ''}" role="tab" aria-selected="${activa === s.id}" onclick="cambiarSeccionEquipo(event, ${teamId}, '${s.id}')">${s.etiqueta}</button>
+      ${VISTAS_STANDINGS.map(
+        (v) => `
+        <button type="button" class="seccion-tab ${vistaActiva === v.id ? 'activo' : ''}" role="tab" aria-selected="${vistaActiva === v.id}" onclick="cambiarVista('${v.id}')">${v.etiqueta}</button>
       `
       ).join('')}
     </div>
   `;
 }
 
-function crearEquipoCard(equipo) {
-  const abierto = expandidos.has(equipo.id);
-  const div = document.createElement('div');
-  div.className = `equipo-card ${abierto ? 'abierto' : ''}`;
-  div.dataset.teamId = equipo.id;
-
-  div.innerHTML = `
-    <div class="equipo-card-encabezado">
-      <img class="logo" src="${logoEquipo(equipo.id)}" alt="" loading="lazy">
-      <span class="equipo-card-nombre">${equipo.nombre}</span>
-      <span class="equipo-card-record">${equipo.wins}-${equipo.losses}</span>
-    </div>
-    ${
-      abierto
-        ? `
-      <div class="detalle">
-        ${renderInfoSeccion(equipo)}
-        ${crearPestanasSeccionEquipo(equipo.id, seccionActiva.get(equipo.id) ?? SECCION_EQUIPO_POR_DEFECTO)}
-        <div class="seccion-contenido">
-          ${renderSeccionEquipo(equipo, seccionActiva.get(equipo.id) ?? SECCION_EQUIPO_POR_DEFECTO)}
-        </div>
-      </div>
-    `
-        : ''
-    }
-  `;
-
-  div.querySelector('.equipo-card-encabezado').addEventListener('click', () => {
-    if (expandidos.has(equipo.id)) {
-      expandidos.delete(equipo.id);
-    } else {
-      expandidos.add(equipo.id);
-    }
-    renderLigas();
-  });
-
-  return div;
+function irAEquipo(event, teamId) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  const retorno = `/teams.html?scroll=${Math.round(window.scrollY)}`;
+  window.location.href = construirUrlConRetorno(`/team.html?id=${teamId}`, retorno);
 }
 
-function refrescarVista() {
-  renderLigas();
+function crearFilaEquipo(equipo, rank, lider) {
+  const l10 = equipo.lastTenWins !== null ? `${equipo.lastTenWins}-${equipo.lastTenLosses}` : '—';
+  const streak = equipo.streakCode ?? '—';
+  const streakClase = streak.startsWith('W') ? 'text-success' : streak.startsWith('L') ? 'text-live-600' : 'text-muted';
+
+  return `
+    <tr class="fila-clicable" onclick="irAEquipo(event, ${equipo.id})">
+      <td>${rank}</td>
+      <td class="nombre-jugador">
+        <span class="inline-flex items-center gap-1.5">
+          <img class="logo" src="${logoEquipo(equipo.id)}" alt="" loading="lazy">
+          ${equipo.nombre}
+        </span>
+      </td>
+      <td>${equipo.wins}</td>
+      <td>${equipo.losses}</td>
+      <td>${formatoPct(equipo.wins, equipo.losses)}</td>
+      <td>${calcularJuegosAtras(equipo, lider)}</td>
+      <td>${l10}</td>
+      <td class="font-semibold ${streakClase}">${streak}</td>
+    </tr>
+  `;
+}
+
+function crearTablaEquipos(equipos, lider) {
+  if (equipos.length === 0) return '<p class="vacio">No standings available.</p>';
+
+  return `
+    <div class="boxscore-wrap">
+      <table class="tabla-stats">
+        <thead>
+          <tr><th>#</th><th>Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>L10</th><th>STRK</th></tr>
+        </thead>
+        <tbody>${equipos.map((e, i) => crearFilaEquipo(e, i + 1, lider)).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderVistaDivision(todos) {
+  return [103, 104]
+    .map((leagueId) => {
+      const divisiones = Object.entries(DIVISIONES_MLB).filter(([, info]) => info.liga === leagueId);
+      const grupos = divisiones
+        .map(([divisionId]) => {
+          const equipos = todos
+            .filter((e) => e.divisionId === Number(divisionId))
+            .sort((a, b) => a.divisionRank - b.divisionRank);
+          if (equipos.length === 0) return '';
+
+          return `
+            <div class="division-grupo">
+              <h3 class="division-titulo">${equipos[0].divisionNombre}</h3>
+              ${crearTablaEquipos(equipos, equipos[0])}
+            </div>
+          `;
+        })
+        .join('');
+
+      return `
+        <section class="liga">
+          <h2 class="liga-titulo">${LIGAS_MLB[leagueId]}</h2>
+          ${grupos}
+        </section>
+      `;
+    })
+    .join('');
+}
+
+function renderVistaLeague(todos) {
+  return [103, 104]
+    .map((leagueId) => {
+      const equipos = todos.filter((e) => e.leagueId === leagueId).sort(ordenarPorPct);
+      if (equipos.length === 0) return '';
+
+      return `
+        <section class="liga">
+          <h2 class="liga-titulo">${LIGAS_MLB[leagueId]}</h2>
+          ${crearTablaEquipos(equipos, equipos[0])}
+        </section>
+      `;
+    })
+    .join('');
+}
+
+function renderVistaOverall(todos) {
+  const equipos = todos.slice().sort(ordenarPorPct);
+  return `
+    <section class="liga">
+      <h2 class="liga-titulo">MLB Overall</h2>
+      ${crearTablaEquipos(equipos, equipos[0])}
+    </section>
+  `;
 }
 
 function renderLigas() {
   const contenedor = document.getElementById('ligas');
-  contenedor.innerHTML = '';
 
   if (registros.size === 0) {
     contenedor.innerHTML = '<p class="estado">No standings available.</p>';
     return;
   }
 
-  [103, 104].forEach((leagueId) => {
-    const seccion = document.createElement('section');
-    seccion.className = 'liga';
+  const todos = [...registros.values()];
+  const cuerpo =
+    vistaActiva === 'league' ? renderVistaLeague(todos) : vistaActiva === 'overall' ? renderVistaOverall(todos) : renderVistaDivision(todos);
 
-    const titulo = document.createElement('h2');
-    titulo.className = 'liga-titulo';
-    titulo.textContent = LIGAS[leagueId];
-    seccion.appendChild(titulo);
+  contenedor.innerHTML = `${crearPestanasVista()}${cuerpo}`;
+}
 
-    Object.entries(DIVISIONES)
-      .filter(([, info]) => info.liga === leagueId)
-      .forEach(([divisionId]) => {
-        const equipos = [...registros.values()]
-          .filter((e) => e.divisionId === Number(divisionId))
-          .sort((a, b) => a.divisionRank - b.divisionRank);
-
-        if (equipos.length === 0) return;
-
-        const grupo = document.createElement('div');
-        grupo.className = 'division-grupo';
-
-        const subtitulo = document.createElement('h3');
-        subtitulo.className = 'division-titulo';
-        subtitulo.textContent = equipos[0].divisionNombre;
-        grupo.appendChild(subtitulo);
-
-        const lista = document.createElement('div');
-        lista.className = 'equipo-lista';
-        equipos.forEach((equipo) => lista.appendChild(crearEquipoCard(equipo)));
-        grupo.appendChild(lista);
-
-        seccion.appendChild(grupo);
-      });
-
-    contenedor.appendChild(seccion);
-  });
+function aplicarParametrosURL() {
+  const scroll = new URLSearchParams(window.location.search).get('scroll');
+  scrollGuardadoPendiente = scroll !== null ? Number(scroll) : null;
 }
 
 async function cargarEquipos() {
   const contenedor = document.getElementById('ligas');
 
   try {
-    const resp = await fetch(
-      `${API_BASE}/standings?leagueId=103,104&season=${TEMPORADA}&standingsTypes=regularSeason`
-    );
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-
-    const nuevosRegistros = new Map();
-    (data.records ?? []).forEach((bloque) => {
-      const divisionId = bloque.division?.id;
-      const info = DIVISIONES[divisionId] ?? { nombre: '', liga: bloque.league?.id };
-
-      (bloque.teamRecords ?? []).forEach((tr) => {
-        nuevosRegistros.set(tr.team.id, {
-          id: tr.team.id,
-          nombre: tr.team.name,
-          wins: tr.wins,
-          losses: tr.losses,
-          divisionRank: Number(tr.divisionRank),
-          leagueRank: Number(tr.leagueRank),
-          gamesBack: tr.gamesBack,
-          divisionId,
-          divisionNombre: info.nombre,
-          leagueId: info.liga,
-          leagueNombre: LIGAS[info.liga] ?? '',
-        });
-      });
-    });
-
-    registros = nuevosRegistros;
+    registros = await obtenerStandingsLiga(TEMPORADA);
     renderLigas();
-    desplazarAEquipoDesdeURL();
+
+    if (Number.isFinite(scrollGuardadoPendiente)) {
+      window.scrollTo(0, scrollGuardadoPendiente);
+      scrollGuardadoPendiente = null;
+    }
   } catch (err) {
     contenedor.innerHTML = `
       <p class="estado">
-        Error loading teams: ${err.message}
+        Error loading standings: ${err.message}
         <br><button type="button" class="retry-btn" onclick="cargarEquipos()">Retry</button>
       </p>
     `;
   }
-}
-
-// Soporta volver desde game.html (?team=ID&section=ultimos) reabriendo la
-// misma tarjeta de equipo en la misma sección y llevando la vista hasta ella.
-function aplicarParametrosURL() {
-  const params = new URLSearchParams(window.location.search);
-  const teamId = Number(params.get('team'));
-  if (!Number.isFinite(teamId)) return;
-
-  expandidos.add(teamId);
-  const seccion = params.get('section');
-  if (seccion) seccionActiva.set(teamId, seccion);
-}
-
-function desplazarAEquipoDesdeURL() {
-  const params = new URLSearchParams(window.location.search);
-  const teamId = params.get('team');
-  if (!teamId) return;
-
-  document.querySelector(`[data-team-id="${teamId}"]`)?.scrollIntoView({ block: 'start' });
 }
 
 aplicarParametrosURL();

@@ -15,6 +15,8 @@ const cacheBullpen = new Map();
 const cacheStandings = new Map();
 const cacheBateadoresHistorial = new Map();
 const cacheUltimosPartidosEquipo = new Map();
+const ultimosPartidosMostrados = new Map();
+const ULTIMOS_PARTIDOS_POR_PAGINA = 10;
 const equipoActivo = new Map();
 const abridorEquipoActivo = new Map();
 const ultimosEquipoActivo = new Map();
@@ -1241,8 +1243,7 @@ async function obtenerUltimosPartidosEquipo(teamId, temporada, fechaLimite) {
   const partidos = (data.dates ?? [])
     .flatMap((f) => f.games)
     .filter((g) => g.status.abstractGameState === 'Final')
-    .sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate))
-    .slice(0, 10);
+    .sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate));
 
   cacheUltimosPartidosEquipo.set(clave, partidos);
   return partidos;
@@ -1284,12 +1285,27 @@ function renderUltimosPartidosEquipo(game, equipo) {
     return '<p class="vacio">Loading...</p>';
   }
 
-  const partidos = cacheUltimosPartidosEquipo.get(clave);
-  if (partidos.length === 0) {
+  const todos = cacheUltimosPartidosEquipo.get(clave);
+  if (todos.length === 0) {
     return '<p class="vacio">No completed games yet.</p>';
   }
 
-  return `<div class="partidos-lista">${partidos.map((g) => crearFilaUltimoPartido(equipo.id, g, game.gamePk)).join('')}</div>`;
+  const mostrados = ultimosPartidosMostrados.get(clave) ?? ULTIMOS_PARTIDOS_POR_PAGINA;
+  const partidos = todos.slice(0, mostrados);
+  const hayMas = mostrados < todos.length;
+
+  return `
+    <div class="partidos-lista">${partidos.map((g) => crearFilaUltimoPartido(equipo.id, g, game.gamePk)).join('')}</div>
+    ${hayMas ? `<button type="button" class="cargar-mas-btn" onclick="cargarMasUltimosPartidosEquipo(event, '${clave}', ${game.gamePk})">Load 10 more</button>` : ''}
+  `;
+}
+
+function cargarMasUltimosPartidosEquipo(event, clave, gamePk) {
+  event.stopPropagation();
+  const total = cacheUltimosPartidosEquipo.get(clave)?.length ?? 0;
+  const mostrados = ultimosPartidosMostrados.get(clave) ?? ULTIMOS_PARTIDOS_POR_PAGINA;
+  ultimosPartidosMostrados.set(clave, Math.min(mostrados + ULTIMOS_PARTIDOS_POR_PAGINA, total));
+  actualizarDetalleJuego(gamePk);
 }
 
 function cambiarUltimosEquipo(event, gamePk, lado) {

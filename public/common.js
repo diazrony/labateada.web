@@ -225,6 +225,68 @@ function crearTablaJugadores(tablaId, jugadores, columnas, crearFila, obtenerVal
   `;
 }
 
+const LIGAS_MLB = { 103: 'American League', 104: 'National League' };
+
+const DIVISIONES_MLB = {
+  200: { nombre: 'AL West', liga: 103 },
+  201: { nombre: 'AL East', liga: 103 },
+  202: { nombre: 'AL Central', liga: 103 },
+  203: { nombre: 'NL West', liga: 104 },
+  204: { nombre: 'NL East', liga: 104 },
+  205: { nombre: 'NL Central', liga: 104 },
+};
+
+function formatoPct(wins, losses) {
+  const total = wins + losses;
+  if (total === 0) return '.000';
+  return (wins / total).toFixed(3).replace(/^0/, '');
+}
+
+// Juegos de diferencia respecto al líder de un grupo (división/liga/general),
+// con la fórmula estándar: no depende de qué recorte de standings devuelva
+// la API para cada agrupación, así sirve igual para las tres vistas.
+function calcularJuegosAtras(equipo, lider) {
+  if (equipo.id === lider.id) return '-';
+  const gb = (lider.wins - equipo.wins + (equipo.losses - lider.losses)) / 2;
+  if (gb <= 0) return '-';
+  return Number.isInteger(gb) ? String(gb) : gb.toFixed(1);
+}
+
+async function obtenerStandingsLiga(temporada) {
+  const resp = await fetch(`${API_BASE}/standings?leagueId=103,104&season=${temporada}&standingsTypes=regularSeason`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+
+  const registros = new Map();
+  (data.records ?? []).forEach((bloque) => {
+    const divisionId = bloque.division?.id;
+    const info = DIVISIONES_MLB[divisionId] ?? { nombre: bloque.division?.nameShort ?? '', liga: bloque.league?.id };
+    const lastTen = (tr) => tr.records?.splitRecords?.find((r) => r.type === 'lastTen');
+
+    (bloque.teamRecords ?? []).forEach((tr) => {
+      const l10 = lastTen(tr);
+      registros.set(tr.team.id, {
+        id: tr.team.id,
+        nombre: tr.team.name,
+        wins: tr.wins,
+        losses: tr.losses,
+        divisionRank: Number(tr.divisionRank),
+        leagueRank: Number(tr.leagueRank),
+        gamesBack: tr.gamesBack,
+        streakCode: tr.streak?.streakCode ?? null,
+        lastTenWins: l10?.wins ?? null,
+        lastTenLosses: l10?.losses ?? null,
+        divisionId,
+        divisionNombre: info.nombre,
+        leagueId: info.liga,
+        leagueNombre: LIGAS_MLB[info.liga] ?? '',
+      });
+    });
+  });
+
+  return registros;
+}
+
 function ordinal(n) {
   if (!Number.isFinite(n)) return `${n}`;
   const resto100 = n % 100;
