@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#fdfbfa" />
+  <title>La Bateada · Team</title>
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="La Bateada" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img class="logo-mark" src="/LaBateada.png" alt="La Bateada" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Primary navigation">
+        <a class="sidebar-link" href="/index.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="10" width="4" height="10" rx="1"></rect>
+            <rect x="10" y="6" width="4" height="14" rx="1"></rect>
+            <rect x="17" y="13" width="4" height="7" rx="1"></rect>
+          </svg>
+          <span>Scores</span>
+        </a>
+        <a class="sidebar-link activo" href="/teams.html" aria-current="page">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"></path>
+          </svg>
+          <span>Teams</span>
+        </a>
+        <a class="sidebar-link" href="/player.html">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="4"></circle>
+            <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"></path>
+          </svg>
+          <span>Players</span>
+        </a>
+      </nav>
+      <p class="sidebar-foot">Data: MLB Stats API</p>
+    </aside>
+
+    <div class="app-main">
+      <div class="content-container">
+        <div class="page-head">
+          <header class="topbar">
+            <a class="topbar-brand" href="/index.html">
+              <img class="logo-mark-sm" src="/icons/icon-192.png" alt="La Bateada" />
+            </a>
+            <div class="topbar-context">
+              <h1 class="topbar-title" id="equipo-titulo">Team</h1>
+              <p class="subtitulo-pagina" id="equipo-subtitulo"></p>
+            </div>
+          </header>
+
+          <nav class="game-nav" aria-label="Team navigation">
+            <a id="volver" class="game-nav-back" href="/teams.html">‹ Back</a>
+          </nav>
+        </div>
+
+        <main id="perfil-equipo">
+          <p class="estado">Loading team...</p>
+        </main>
+
+        <footer>
+          <p>Datos: MLB Stats API</p>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Primary navigation">
+    <a class="bottom-nav-link" href="/index.html">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="10" width="4" height="10" rx="1"></rect>
+        <rect x="10" y="6" width="4" height="14" rx="1"></rect>
+        <rect x="17" y="13" width="4" height="7" rx="1"></rect>
+      </svg>
+      <span>Scores</span>
+    </a>
+    <a class="bottom-nav-link activo" href="/teams.html" aria-current="page">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"></path>
+      </svg>
+      <span>Teams</span>
+    </a>
+    <a class="bottom-nav-link" href="/player.html">
+      <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="8" r="4"></circle>
+        <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"></path>
+      </svg>
+      <span>Players</span>
+    </a>
+  </nav>
+
+  <script src="/common.js"></script>
+  <script src="/team.js"></script>
+</body>
+</html>
